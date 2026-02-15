@@ -3,6 +3,20 @@
 
 import { patterns, keywordToOp, Directive } from './patterns';
 
+/**
+ * Confidence 레벨 정의 (매직 넘버 제거)
+ *
+ * 의미:
+ * - EXACT (0.95): 완전 일치 또는 explicit 선언
+ * - SUBSTRING (0.70): 부분 문자열 매칭
+ * - FUZZY (0.50): fuzzy/edit distance 기반 매칭
+ */
+export const CONFIDENCE_LEVELS = {
+  EXACT: 0.95,
+  SUBSTRING: 0.70,
+  FUZZY: 0.50,
+} as const;
+
 export interface HeaderProposal {
   fn: string;                    // function name
   input: string;                 // input type
@@ -61,7 +75,7 @@ export class AutoHeaderEngine {
       const op = keywordToOp[token];
       if (op) {
         // Exact match = high confidence
-        bestMatch = { op, confidence: 0.95 };
+        bestMatch = { op, confidence: CONFIDENCE_LEVELS.EXACT };
         break;
       }
     }
@@ -71,7 +85,7 @@ export class AutoHeaderEngine {
       for (const token of tokens) {
         for (const [keyword, op] of Object.entries(keywordToOp)) {
           if (token.includes(keyword) || keyword.includes(token)) {
-            bestMatch = { op, confidence: 0.70 };
+            bestMatch = { op, confidence: CONFIDENCE_LEVELS.SUBSTRING };
             break;
           }
         }
@@ -84,7 +98,7 @@ export class AutoHeaderEngine {
       for (const patternOp of Object.keys(patterns)) {
         for (const token of tokens) {
           if (this.fuzzyMatch(token, patternOp) > 0.7) {
-            bestMatch = { op: patternOp, confidence: 0.50 };
+            bestMatch = { op: patternOp, confidence: CONFIDENCE_LEVELS.FUZZY };
             break;
           }
         }

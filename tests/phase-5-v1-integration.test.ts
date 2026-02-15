@@ -115,6 +115,20 @@ output: array<number>`;
       expect(ast.outputType).toBe('array<number>');
     });
 
+    test('중첩 제너릭 타입 파싱 (nested generics)', () => {
+      const code = `fn matrixSum
+input: array<array<number>>
+output: number`;
+
+      const lexer = new Lexer(code);
+      const buffer = new TokenBuffer(lexer);
+      const ast = parseMinimalFunction(buffer);
+
+      expect(ast.fnName).toBe('matrixSum');
+      expect(ast.inputType).toBe('array<array<number>>');
+      expect(ast.outputType).toBe('number');
+    });
+
     test('배열 타입 축약형 파싱', () => {
       const code = `fn count
 input: [number]

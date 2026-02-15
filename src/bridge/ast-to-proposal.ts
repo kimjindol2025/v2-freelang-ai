@@ -10,14 +10,20 @@ import { HeaderProposal } from '../engine/auto-header';
 import { Directive } from '../engine/patterns';
 
 /**
+ * AST 파싱 신뢰도 (명시적 선언이므로 매우 높음)
+ * - 0.98: v1 파서로 완벽하게 구문 분석된 명시적 선언
+ * (자유형 텍스트 기반이 아니라 explicit 문법이므로 거의 확실함)
+ */
+const AST_CONFIDENCE = 0.98;
+
+/**
  * AST를 HeaderProposal로 변환
  *
  * .free 파일의 explicit 선언을 HeaderProposal 형식으로 변환하므로
- * 신뢰도는 매우 높음 (95%+)
+ * 신뢰도는 매우 높음 (AST_CONFIDENCE = 0.98)
  */
 export function astToProposal(ast: MinimalFunctionAST): HeaderProposal {
-  // .free 파일은 explicit 선언이므로 매우 높은 신뢰도
-  const confidence = 0.98; // v1 파서로 명확하게 구문 분석됨 (0.0-1.0 범위)
+  const confidence = AST_CONFIDENCE;
 
   // matched_op 추론: intent에서 동작 키워드 찾기
   const matched_op = inferOperation(ast.intent || '', ast.fnName);

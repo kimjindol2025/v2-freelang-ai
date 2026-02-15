@@ -446,6 +446,10 @@ export class TokenBuffer {
 
   /**
    * 버퍼를 BUFFER_SIZE까지 채우기
+   *
+   * 특별 처리: SHR (>>) 토큰을 2개의 GT (>) 토큰으로 분해
+   * 이유: nested generics (array<array<number>>) 파싱을 위해
+   * >> 를 generic close >> 로 해석하는 대신 > > 로 분해
    */
   private fillBuffer(): void {
     while (this.buffer.length < this.BUFFER_SIZE && !this.isEOF) {
@@ -453,7 +457,24 @@ export class TokenBuffer {
 
       // NEWLINE 스킵 (Parser의 기존 동작과 동일)
       if (token.type !== TokenType.NEWLINE) {
-        this.buffer.push(token);
+        // SHR (>>) 토큰을 GT 두 개로 분해 (nested generics 지원)
+        if (token.type === TokenType.SHR) {
+          // SHR >> 를 GT > 두 개로 분해
+          this.buffer.push({
+            type: TokenType.GT,
+            value: '>',
+            line: token.line,
+            column: token.column,
+          });
+          this.buffer.push({
+            type: TokenType.GT,
+            value: '>',
+            line: token.line,
+            column: token.column + 1,
+          });
+        } else {
+          this.buffer.push(token);
+        }
       }
 
       if (token.type === TokenType.EOF) {
