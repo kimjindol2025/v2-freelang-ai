@@ -247,20 +247,46 @@ v2-freelang-ai/
 
 ---
 
-## 🚀 빠른 시작 (구현 전)
+## 🚀 빠른 시작
 
 ```bash
-# 현재는 설계 단계이므로 구현 대기 중
+# 저장소 클론
 git clone https://gogs.dclub.kr/kim/v2-freelang-ai.git
 cd v2-freelang-ai
 
-# 설계 문서 읽기
-cat docs/AUTO-HEADER-ENGINE.md
-cat docs/AI-FEEDBACK-LOOP.md
-cat docs/ARCHITECTURE-V2-UPDATED.md
-cat docs/IMPLEMENTATION-ROADMAP.md
+# 설치
+npm install
+npm run build
 
-# 구현 대기 (다른 Claude가 담당)
+# 테스트 실행 (63개 통과)
+npx jest
+
+# 파이프라인 실행
+node -e "
+  const { Pipeline } = require('./dist/pipeline.js');
+  const p = new Pipeline();
+  const result = p.test('sum', [1,2,3,4,5]);
+  console.log(result);
+"
+```
+
+## 📊 사용 예시
+
+```typescript
+import { Pipeline } from './dist/pipeline';
+
+const pipeline = new Pipeline();
+
+// 자유 입력 → 완전 실행
+const result = pipeline.run({
+  instruction: 'sum',
+  data: [1, 2, 3, 4, 5]
+});
+
+console.log(result.header);      // { fn: "sum", input: "array<number>", ... }
+console.log(result.intent);      // IR intent with array setup + ARR_SUM
+console.log(result.vm.value);    // 15
+console.log(result.final_value); // 15
 ```
 
 ---
@@ -322,34 +348,32 @@ cat docs/IMPLEMENTATION-ROADMAP.md
 
 ## 🎯 구현 단계
 
-### Phase 1: 자동 헤더 생성 엔진 ✅ 설계 완료
+### Phase 1: 자동 헤더 생성 엔진 ✅ 구현 완료
 ```
-파일: AUTO-HEADER-ENGINE.md
-내용: 7단계 파이프라인, 의도 DB, 신뢰도 계산
-```
-
-### Phase 2: 헤더 검증 + 코드 생성 ✅ 설계 완료
-```
-파일: IMPLEMENTATION-ROADMAP.md (Week 2)
-내용: HeaderValidator, CGenerator, 템플릿
+파일: src/engine/auto-header.ts (200 LOC)
+파일: src/engine/patterns.ts (120 LOC)
+내용: 13개 연산 패턴, 키워드 매칭, Levenshtein 거리 기반 fuzzy, 신뢰도 계산
+테스트: 14/14 통과
 ```
 
-### Phase 3: 피드백 수집 시스템 ✅ 설계 완료
+### Phase 2: VM + Self-Correction ✅ 구현 완료
 ```
-파일: IMPLEMENTATION-ROADMAP.md (Week 3)
-내용: FeedbackCollector, Storage, CLI
-```
-
-### Phase 4: 학습 엔진 ✅ 설계 완료
-```
-파일: IMPLEMENTATION-ROADMAP.md (Week 4)
-내용: PatternUpdater, ConfidenceUpdater, MetaLearner
+파일: src/vm.ts (270 LOC) - 35 opcodes, 스택머신, ARR_MAP/ARR_FILTER/CALL
+파일: src/correction.ts (150 LOC) - 자동 오류 수정 (8가지 전략)
+파일: src/learner.ts (120 LOC) - 패턴 학습, 성공률 추적
+테스트: 30/30 통과 (VM + E2E)
 ```
 
-### Phase 5~7: 테스트, 최적화, 배포 ✅ 설계 완료
+### Phase 3: Complete Pipeline ✅ 구현 완료
 ```
-파일: IMPLEMENTATION-ROADMAP.md (Week 5-7)
-내용: Unit/Integration/E2E 테스트, 배포
+파일: src/pipeline.ts (280 LOC) - 자유 입력 → 헤더 → IR → 실행
+프로세스: instruction → Auto Header → Generate Intent → VM run → Self-correct → Learn
+테스트: 19/19 통과 (sum, avg, max, min, filter, map, sort, etc)
+```
+
+### Phase 4~5: 코드 생성 + 배포 (다음)
+```
+예정: C 코드 생성 개선, 최적화, 프로덕션 배포
 ```
 
 ---
@@ -418,8 +442,9 @@ AI 피드백 (승인/수정/재제안/취소)
 |------|------|--------|
 | **설계** | ✅ 완료 | 100% |
 | **철학** | ✅ 확정 | 100% |
-| **문서** | ✅ 7개 | 3,606줄 |
-| **구현** | ⏳ 대기 | 0% |
+| **문서** | ✅ 13개 | ~5,500줄 |
+| **구현** | ✅ Phase 1 | ~60% |
+| **테스트** | ✅ 63/63 | 100% |
 
 ### 📚 완성된 설계 문서
 
@@ -455,6 +480,21 @@ MIT License (v1 동일)
 ---
 
 **설계 완료일**: 2026-02-15
-**구현 예정**: 2026-02-22 (7주)
+**구현 시작**: 2026-02-15
+**현재 상태**: Phase 1-3 완료 (2026-02-15)
 **저장소**: https://gogs.dclub.kr/kim/v2-freelang-ai
-**상태**: 🚀 설계 완료, 구현 준비 완료
+**상태**: 🚀 핵심 파이프라인 구현 완료, 63/63 테스트 통과
+
+## 📈 구현 진행률
+
+```
+Phase 1: Auto Header Engine       [██████████] 100% ✅
+Phase 2: VM + Self-Correction     [██████████] 100% ✅
+Phase 3: Complete Pipeline        [██████████] 100% ✅
+Phase 4: CodeGen Optimization     [        ] 0% (다음)
+Phase 5: Production Deploy        [        ] 0% (예정)
+
+전체: 3/5 phases (60%)
+코드: 1,200+ LOC
+테스트: 63/63 (100%)
+```
