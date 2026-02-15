@@ -16,10 +16,11 @@ import { Compiler } from './compiler';
 import { Corrector, CorrectionResult } from './correction';
 import { Learner } from './learner';
 import { AutoHeaderEngine, HeaderProposal } from './engine/auto-header';
+import { Pipeline, PipelineInput, PipelineOutput } from './pipeline';
 
 export { Op, Inst, AIIntent, VMResult, CompileResult };
-export type { CorrectionResult, HeaderProposal };
-export { AutoHeaderEngine };
+export type { CorrectionResult, HeaderProposal, PipelineInput, PipelineOutput };
+export { AutoHeaderEngine, Pipeline };
 
 export interface ExecResult {
   // VM execution
