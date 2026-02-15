@@ -20,7 +20,7 @@ export interface PipelineOutput {
   vm: VMResult;               // VM execution result
   correction?: CorrectionResult;
   compile?: { ok: boolean; c_code?: string };
-  final_value?: number | number[] | boolean;
+  final_value?: unknown;  // Can be number, array, iterator, boolean, etc.
 }
 
 export class Pipeline {

@@ -58,6 +58,11 @@ export enum Op {
   ARR_SORT  = 0x76,
   ARR_REV   = 0x77,
 
+  // Iterator (lazy evaluation)
+  ITER_INIT = 0x80,  // stack: [start, end] → [iterator]
+  ITER_NEXT = 0x81,  // stack: [iterator] → [value, iterator]
+  ITER_HAS  = 0x82,  // stack: [iterator] → [bool]
+
   // Debug (AI reads structured output)
   DUMP      = 0xF0,
 }
@@ -86,7 +91,7 @@ export interface Param {
 // ── VM Result ───────────────────────────────────────────────
 export interface VMResult {
   ok: boolean;
-  value?: number | number[] | boolean;
+  value?: unknown;  // Can be number, array, iterator, boolean, etc.
   error?: VMError;
   cycles: number;                // instructions executed
   ms: number;                    // execution time

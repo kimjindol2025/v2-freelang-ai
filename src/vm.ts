@@ -2,13 +2,14 @@
 // No strings for humans. Pure numeric execution.
 
 import { Op, Inst, VMResult, VMError } from './types';
+import { Iterator, IteratorEngine } from './engine/iterator';
 
 const MAX_CYCLES = 100_000;
 const MAX_STACK  = 10_000;
 
 export class VM {
-  private stack: number[] = [];
-  private vars: Map<string, number | number[]> = new Map();
+  private stack: (number | Iterator)[] = [];
+  private vars: Map<string, number | number[] | Iterator> = new Map();
   private pc = 0;
   private cycles = 0;
   private callStack: number[] = [];  // for CALL/RET
@@ -146,7 +147,7 @@ export class VM {
         this.need(1);
         const arr = this.vars.get(arg as string);
         if (!Array.isArray(arr)) throw new Error('not_array:' + arg);
-        arr.push(this.stack.pop()!);
+        arr.push(this.stack.pop() as number);
         this.pc++;
         break;
       }
@@ -155,7 +156,7 @@ export class VM {
         this.need(1);
         const arr = this.vars.get(arg as string);
         if (!Array.isArray(arr)) throw new Error('not_array:' + arg);
-        const idx = this.stack.pop()!;
+        const idx = this.stack.pop() as number;
         if (idx < 0 || idx >= arr.length) throw new Error('oob:' + idx);
         this.guardStack();
         this.stack.push(arr[idx]);
@@ -167,8 +168,8 @@ export class VM {
         this.need(2);
         const arr = this.vars.get(arg as string);
         if (!Array.isArray(arr)) throw new Error('not_array:' + arg);
-        const val = this.stack.pop()!;
-        const idx = this.stack.pop()!;
+        const val = this.stack.pop() as number;
+        const idx = this.stack.pop() as number;
         if (idx < 0 || idx >= arr.length) throw new Error('oob:' + idx);
         arr[idx] = val;
         this.pc++;
@@ -242,7 +243,7 @@ export class VM {
           const savedStack = this.stack;
           this.stack = [elem];
           this.runSub(inst.sub);
-          const mappedVal = this.stack.length > 0 ? this.stack[0] : 0;
+          const mappedVal = (this.stack.length > 0 ? this.stack[0] : 0) as number;
           result.push(mappedVal);
           this.stack = savedStack;
         }
@@ -281,6 +282,48 @@ export class VM {
         break;
       }
 
+      // ── Iterator (lazy evaluation) ──
+      case Op.ITER_INIT: {
+        // stack: [start, end] → [iterator]
+        this.need(2);
+        const end = this.stack.pop() as number;
+        const start = this.stack.pop() as number;
+        const iter = IteratorEngine.init(start, end);
+        this.guardStack();
+        this.stack.push(iter);
+        this.pc++;
+        break;
+      }
+
+      case Op.ITER_HAS: {
+        // stack: [iterator] → [bool]
+        this.need(1);
+        const iter = this.stack[this.stack.length - 1] as Iterator;
+        if (!iter || typeof iter !== 'object' || !('current' in iter)) {
+          throw new Error('not_iterator');
+        }
+        const hasMore = IteratorEngine.has(iter);
+        this.stack[this.stack.length - 1] = hasMore ? 1 : 0;
+        this.pc++;
+        break;
+      }
+
+      case Op.ITER_NEXT: {
+        // stack: [iterator] → [value, iterator]
+        this.need(1);
+        const iter = this.stack.pop() as Iterator;
+        if (!iter || typeof iter !== 'object' || !('current' in iter)) {
+          throw new Error('not_iterator');
+        }
+        const { value, iterator: nextIter } = IteratorEngine.next(iter);
+        this.guardStack();
+        this.stack.push(value);
+        this.guardStack();
+        this.stack.push(nextIter);
+        this.pc++;
+        break;
+      }
+
       // ── Debug ──
       case Op.DUMP:
         // AI reads this programmatically, no console.log
@@ -294,8 +337,8 @@ export class VM {
 
   private binop(fn: (a: number, b: number) => number): void {
     this.need(2);
-    const b = this.stack.pop()!;
-    const a = this.stack.pop()!;
+    const b = this.stack.pop() as number;
+    const a = this.stack.pop() as number;
     this.guardStack();
     this.stack.push(fn(a, b));
     this.pc++;
@@ -355,7 +398,7 @@ export class VM {
   }
 
   // ── State inspection (for AI) ──
-  getStack(): readonly number[] { return this.stack; }
-  getVar(name: string): number | number[] | undefined { return this.vars.get(name); }
+  getStack(): readonly unknown[] { return this.stack; }
+  getVar(name: string): unknown { return this.vars.get(name); }
   getVarNames(): string[] { return [...this.vars.keys()]; }
 }
