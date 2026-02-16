@@ -127,11 +127,23 @@ export class StubGenerator {
 
     const lowerType = type.toLowerCase();
 
-    if (lowerType === 'number') return '0';
-    if (lowerType === 'string') return '""';
+    // Number types
+    if (lowerType === 'number' || lowerType === 'int' || lowerType === 'float') return '0';
+
+    // String types
+    if (lowerType === 'string' || lowerType === 'str') return '""';
+
+    // Array types
     if (lowerType.startsWith('array') || lowerType === 'list') return '[]';
+
+    // Boolean types
     if (lowerType === 'bool' || lowerType === 'boolean') return 'false';
+
+    // Void
     if (lowerType === 'void') return '// empty';
+
+    // Null/None
+    if (lowerType === 'null' || lowerType === 'none') return 'null';
 
     return 'null';
   }
@@ -164,6 +176,11 @@ export class StubGenerator {
    */
   public completeExpression(expr: string, expectedType: string): string {
     const trimmed = expr.trim();
+
+    // If empty, just return the stub
+    if (trimmed === '') {
+      return this.generateStubForType(expectedType);
+    }
 
     // If ends with operator, add stub
     if (['+', '-', '*', '/', '='].some(op => trimmed.endsWith(op))) {
