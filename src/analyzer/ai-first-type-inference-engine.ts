@@ -23,6 +23,7 @@
 import { FunctionNameAnalysis, FunctionNameEnhancer } from './function-name-enhancer';
 import { VariableNameAnalysis, VariableNameEnhancer } from './variable-name-enhancer';
 import { CommentInfo, CommentAnalyzer } from './comment-analyzer';
+import { AdvancedTypeInferenceEngine } from './advanced-type-inference-engine';
 
 export interface TypeInferenceSource {
   fromFunctionName?: FunctionNameAnalysis;
@@ -48,6 +49,7 @@ export interface InferredType {
  * AI-First 타입 추론 엔진
  */
 export class AIFirstTypeInferenceEngine {
+  private advancedEngine: AdvancedTypeInferenceEngine;
   private functionNameEnhancer: FunctionNameEnhancer;
   private variableNameEnhancer: VariableNameEnhancer;
   private commentAnalyzer: CommentAnalyzer;
@@ -78,6 +80,7 @@ export class AIFirstTypeInferenceEngine {
   ]);
 
   constructor() {
+    this.advancedEngine = new AdvancedTypeInferenceEngine();
     this.functionNameEnhancer = new FunctionNameEnhancer();
     this.variableNameEnhancer = new VariableNameEnhancer();
     this.commentAnalyzer = new CommentAnalyzer();
@@ -85,14 +88,28 @@ export class AIFirstTypeInferenceEngine {
 
   /**
    * 코드 요소(함수/변수)의 최종 타입을 추론
+   *
+   * Phase 5 Stage 2: Semantic analysis 통합
+   * - code 매개변수를 추가하여 AdvancedTypeInferenceEngine 호출 가능
    */
   inferType(
     name: string,
     nameType: 'function' | 'variable',
-    comment?: string
+    comment?: string,
+    code?: string
   ): InferredType {
     const sources: TypeInferenceSource = {};
     const inferenceLogs: string[] = [];
+
+    // Step 0: Semantic analysis (NEW - Phase 5 Stage 2)
+    let semanticInfo: any = null;
+    if (code) {
+      const semanticAnalysis = this.advancedEngine.infer(code);
+      if (semanticAnalysis.has(name)) {
+        semanticInfo = semanticAnalysis.get(name);
+        inferenceLogs.push(`[Semantic] "${name}" analyzed (confidence: ${(semanticInfo.confidence * 100).toFixed(0)}%)`);
+      }
+    }
 
     // Step 1: 함수명/변수명 분석
     if (nameType === 'function') {
@@ -109,26 +126,40 @@ export class AIFirstTypeInferenceEngine {
       inferenceLogs.push(`[Comment] "${comment.substring(0, 50)}" analyzed`);
     }
 
-    // Step 3: 3개 소스를 통합하여 최종 타입 결정
-    const result = this.synthesizeType(name, nameType, sources, inferenceLogs);
+    // Step 3: 통합하여 최종 타입 결정 (semantic info 포함)
+    const result = this.synthesizeType(name, nameType, sources, inferenceLogs, semanticInfo);
 
     return result;
   }
 
   /**
-   * 3개 소스의 정보를 통합
+   * 여러 소스의 정보를 통합
+   *
+   * Phase 5 Stage 2: Semantic analysis 추가 (가장 높은 가중치)
    */
   private synthesizeType(
     name: string,
     nameType: 'function' | 'variable',
     sources: TypeInferenceSource,
-    logs: string[]
+    logs: string[],
+    semanticInfo?: any
   ): InferredType {
     const candidates: Array<{
       type: string;
       confidence: number;
       source: string;
     }> = [];
+
+    // Step 0: Semantic analysis (NEW - Phase 5 Stage 2)
+    // 가중치 0.30으로 처리하지만, code 기반 추론이므로 신뢰도 제한 (max 0.80)
+    // (code가 불완전할 수 있으므로 다른 소스들과의 충돌 방지)
+    if (semanticInfo) {
+      candidates.push({
+        type: semanticInfo.inferredType,
+        confidence: Math.min(semanticInfo.confidence, 0.80),  // Cap at 0.80
+        source: 'semantic_analysis',
+      });
+    }
 
     // 각 소스에서 타입 추출
     if (sources.fromFunctionName) {
@@ -342,6 +373,8 @@ export class AIFirstTypeInferenceEngine {
 
   /**
    * 복수 타입 추론 (E2E 통합용)
+   *
+   * Phase 5 Stage 2: code를 inferType에 전달하여 semantic analysis 활용
    */
   inferTypes(name: string, code: string, comments?: string[]): {
     signature: { domain?: string; confidence: number };
@@ -353,7 +386,7 @@ export class AIFirstTypeInferenceEngine {
     }>;
   } {
     const comment = comments ? comments[0] : undefined;
-    const result = this.inferType(name, 'function', comment);
+    const result = this.inferType(name, 'function', comment, code);
 
     // 변수 추출 (간단한 정규식 기반)
     const variableMatches = code.match(/(?:const|let|var|function)\s+(\w+)/g) || [];
@@ -367,7 +400,7 @@ export class AIFirstTypeInferenceEngine {
     for (const match of variableMatches) {
       const varName = match.replace(/(?:const|let|var|function)\s+/, '');
       if (varName !== name) {
-        const varResult = this.inferType(varName, 'variable');
+        const varResult = this.inferType(varName, 'variable', undefined, code);
         variables.push({
           name: varName,
           inferredType: varResult.type,
@@ -388,13 +421,15 @@ export class AIFirstTypeInferenceEngine {
 
   /**
    * 변수 타입 추론
+   *
+   * Phase 5 Stage 2: code 매개변수를 전달하여 semantic analysis 활용
    */
   inferVariableType(
     name: string,
     value: string,
     code?: string
   ): InferredType {
-    return this.inferType(name, 'variable', code);
+    return this.inferType(name, 'variable', undefined, code);
   }
 
   /**
