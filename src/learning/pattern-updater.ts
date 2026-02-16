@@ -1,336 +1,357 @@
 /**
- * Phase 7.2: Pattern Learning Engine
- *
- * 사용자 피드백 → 패턴 개선
- * - 신뢰도 업데이트 (approval/rejection)
- * - 패턴 변형 학습 (variations)
- * - 사용 통계 추적
+ * FreeLang v2 - Pattern Updater (Task 4.1)
+ * Intent 패턴 DB 동적 업데이트
+ * 피드백 기반 패턴 개선 및 새로운 패턴 학습
  */
 
-import { AutocompleteItem } from '../engine/autocomplete-db';
+import { FeedbackEntry } from '../feedback/feedback-types';
+import {
+  INTENT_PATTERNS,
+  IntentPattern,
+  PATTERN_IDS,
+} from '../engine/intent-patterns';
 
-export interface LearnedPattern {
-  id: string;                                // "sum", "filter", etc
-  original: AutocompleteItem;                // 기본 패턴
+export interface PatternUpdate {
+  operation: string;
+  newKeywords: string[];
+  removedKeywords: string[];
+  confidenceBoost: number;
+  timestamp: number;
+  feedbackCount: number;
+}
 
-  // 피드백 통계
-  feedback: {
-    approved: number;                        // 승인 횟수
-    rejected: number;                        // 거부 횟수
-    modified: number;                        // 수정 횟수
-  };
-
-  // 학습 데이터
-  variations: Array<{
-    text: string;                            // "배열 합산", "total", "sum all"
-    count: number;                           // 사용 횟수
-    approved: boolean;                       // 마지막 피드백
-  }>;
-
-  // 신뢰도 추적
-  confidence_history: Array<{
-    date: Date;
-    value: number;
-    reason: 'init' | 'approval' | 'rejection' | 'modification';
-  }>;
-
-  // 메타 정보
-  last_feedback: Date | null;
-  total_interactions: number;
+export interface PatternStats {
+  operation: string;
+  totalFeedback: number;
+  approvalRate: number;
+  rejectionRate: number;
+  modificationRate: number;
+  avgAccuracy: number;
+  lastUpdated: number;
 }
 
 export class PatternUpdater {
-  private patterns: Map<string, LearnedPattern> = new Map();
+  private patternHistory: Map<string, PatternUpdate[]> = new Map();
+  private patternStats: Map<string, PatternStats> = new Map();
 
   /**
-   * 패턴 초기화
+   * 피드백을 기반으로 패턴 업데이트
+   *
+   * 알고리즘:
+   * 1. Operation별 피드백 통계 계산
+   * 2. 키워드 추가/제거 결정
+   * 3. 신뢰도 부스트 계산
+   * 4. 패턴 히스토리에 기록
+   *
+   * @param feedbacks 수집된 피드백 배열
+   * @returns 업데이트된 패턴 목록
    */
-  initializePattern(item: AutocompleteItem): void {
-    this.patterns.set(item.id, {
-      id: item.id,
-      original: item,
-      feedback: {
-        approved: 0,
-        rejected: 0,
-        modified: 0,
-      },
-      variations: item.examples.map(ex => ({
-        text: ex,
-        count: 0,
-        approved: true,
-      })),
-      confidence_history: [
-        {
-          date: new Date(),
-          value: item.confidence,
-          reason: 'init',
-        },
-      ],
-      last_feedback: null,
-      total_interactions: 0,
-    });
-  }
+  updatePatterns(feedbacks: FeedbackEntry[]): PatternUpdate[] {
+    const updates: PatternUpdate[] = [];
 
-  /**
-   * 승인 피드백 처리
-   */
-  recordApproval(patternId: string, variation?: string): void {
-    const pattern = this.patterns.get(patternId);
-    if (!pattern) return;
+    if (feedbacks.length === 0) {
+      return updates;
+    }
 
-    // 피드백 기록
-    pattern.feedback.approved++;
-    pattern.total_interactions++;
-    pattern.last_feedback = new Date();
+    // 1. Operation별 그룹화
+    const feedbacksByOp = this._groupByOperation(feedbacks);
 
-    // 변형 추적
-    if (variation && !this.hasVariation(pattern, variation)) {
-      pattern.variations.push({
-        text: variation,
-        count: 1,
-        approved: true,
-      });
-    } else if (variation) {
-      const varItem = pattern.variations.find(v => v.text === variation);
-      if (varItem) {
-        varItem.count++;
-        varItem.approved = true;
+    // 2. 각 Operation별 분석 및 업데이트
+    for (const [operation, opFeedbacks] of feedbacksByOp.entries()) {
+      const stats = this._calculateStats(operation, opFeedbacks);
+      this.patternStats.set(operation, stats);
+
+      // 3. 업데이트 결정
+      const update = this._decidePatternUpdate(
+        operation,
+        opFeedbacks,
+        stats
+      );
+
+      if (update) {
+        updates.push(update);
+        this._recordUpdate(operation, update);
       }
     }
 
-    // 신뢰도 업데이트 (+2%)
-    const newConfidence = Math.min(
-      0.98,
-      pattern.original.confidence * 1.02
-    );
-    pattern.original.confidence = newConfidence;
-
-    // 히스토리 기록
-    pattern.confidence_history.push({
-      date: new Date(),
-      value: newConfidence,
-      reason: 'approval',
-    });
+    return updates;
   }
 
   /**
-   * 거부 피드백 처리
+   * Operation별 피드백 그룹화
    */
-  recordRejection(patternId: string, variation?: string): void {
-    const pattern = this.patterns.get(patternId);
-    if (!pattern) return;
+  private _groupByOperation(
+    feedbacks: FeedbackEntry[]
+  ): Map<string, FeedbackEntry[]> {
+    const grouped = new Map<string, FeedbackEntry[]>();
 
-    // 피드백 기록
-    pattern.feedback.rejected++;
-    pattern.total_interactions++;
-    pattern.last_feedback = new Date();
-
-    // 변형 추적
-    if (variation) {
-      const varItem = pattern.variations.find(v => v.text === variation);
-      if (varItem) {
-        varItem.approved = false;
+    feedbacks.forEach((fb) => {
+      const op = fb.proposal.operation;
+      if (!grouped.has(op)) {
+        grouped.set(op, []);
       }
-    }
-
-    // 신뢰도 업데이트 (-5%)
-    const newConfidence = Math.max(
-      0.50,
-      pattern.original.confidence * 0.95
-    );
-    pattern.original.confidence = newConfidence;
-
-    // 히스토리 기록
-    pattern.confidence_history.push({
-      date: new Date(),
-      value: newConfidence,
-      reason: 'rejection',
+      grouped.get(op)!.push(fb);
     });
+
+    return grouped;
   }
 
   /**
-   * 수정 피드백 처리
+   * Operation별 통계 계산
    */
-  recordModification(
-    patternId: string,
-    modification: Partial<AutocompleteItem>
-  ): void {
-    const pattern = this.patterns.get(patternId);
-    if (!pattern) return;
+  private _calculateStats(
+    operation: string,
+    feedbacks: FeedbackEntry[]
+  ): PatternStats {
+    let approvalCount = 0;
+    let rejectionCount = 0;
+    let modificationCount = 0;
+    let totalAccuracy = 0;
 
-    // 피드백 기록
-    pattern.feedback.modified++;
-    pattern.total_interactions++;
-    pattern.last_feedback = new Date();
-
-    // 패턴 업데이트
-    if (modification.description) {
-      pattern.original.description = modification.description;
-    }
-    if (modification.examples) {
-      modification.examples.forEach(ex => {
-        if (!this.hasVariation(pattern, ex)) {
-          pattern.variations.push({
-            text: ex,
-            count: 1,
-            approved: true,
-          });
-        }
-      });
-    }
-
-    // 신뢰도 업데이트 (-2%)
-    const newConfidence = Math.max(
-      0.50,
-      pattern.original.confidence * 0.98
-    );
-    pattern.original.confidence = newConfidence;
-
-    // 히스토리 기록
-    pattern.confidence_history.push({
-      date: new Date(),
-      value: newConfidence,
-      reason: 'modification',
+    feedbacks.forEach((fb) => {
+      switch (fb.userFeedback.action) {
+        case 'approve':
+          approvalCount++;
+          break;
+        case 'reject':
+          rejectionCount++;
+          break;
+        case 'modify':
+          modificationCount++;
+          break;
+      }
+      totalAccuracy += fb.analysis.accuracy;
     });
-  }
 
-  /**
-   * 변형 확인
-   */
-  private hasVariation(pattern: LearnedPattern, text: string): boolean {
-    return pattern.variations.some(v => v.text === text);
-  }
-
-  /**
-   * 패턴 통계
-   */
-  getStats(patternId: string) {
-    const pattern = this.patterns.get(patternId);
-    if (!pattern) return null;
-
-    const { approved, rejected, modified } = pattern.feedback;
-    const total = pattern.total_interactions;
-    const approvalRate = total > 0 ? approved / total : 0;
-    const avgConfidence =
-      pattern.confidence_history.reduce((sum, h) => sum + h.value, 0) /
-      pattern.confidence_history.length;
+    const total = feedbacks.length;
 
     return {
-      id: patternId,
-      total_interactions: total,
-      approved,
-      rejected,
-      modified,
-      approval_rate: approvalRate,
-      rejection_rate: total > 0 ? rejected / total : 0,
-      avg_confidence: avgConfidence,
-      current_confidence: pattern.original.confidence,
-      variations_count: pattern.variations.length,
-      last_feedback: pattern.last_feedback,
+      operation,
+      totalFeedback: total,
+      approvalRate: approvalCount / total,
+      rejectionRate: rejectionCount / total,
+      modificationRate: modificationCount / total,
+      avgAccuracy: totalAccuracy / total,
+      lastUpdated: Date.now(),
     };
   }
 
   /**
-   * 모든 패턴 통계
+   * 패턴 업데이트 결정
    */
-  getAllStats() {
-    const stats = [];
-    for (const [id] of this.patterns) {
-      const stat = this.getStats(id);
-      if (stat) stats.push(stat);
+  private _decidePatternUpdate(
+    operation: string,
+    feedbacks: FeedbackEntry[],
+    stats: PatternStats
+  ): PatternUpdate | null {
+    const pattern = INTENT_PATTERNS[operation];
+    if (!pattern) {
+      return null;
     }
-    return stats.sort((a, b) => b.total_interactions - a.total_interactions);
+
+    const newKeywords: string[] = [];
+    const removedKeywords: string[] = [];
+    let confidenceBoost = 0;
+
+    // 1. 거부된 피드백에서 키워드 추출 (제거 후보)
+    const rejectedFeedbacks = feedbacks.filter(
+      (fb) => fb.userFeedback.action === 'reject'
+    );
+
+    if (rejectedFeedbacks.length > 0) {
+      // 거부율이 높으면 일부 키워드 제거 고려
+      if (stats.rejectionRate > 0.3) {
+        // 가장 덜 사용되는 키워드 제거
+        const leastUsed = this._findLeastUsedKeywords(
+          feedbacks,
+          pattern.keywords,
+          Math.ceil(pattern.keywords.length * 0.1)
+        );
+        removedKeywords.push(...leastUsed);
+      }
+    }
+
+    // 2. 수정된 피드백에서 새로운 키워드 추출
+    const modifiedFeedbacks = feedbacks.filter(
+      (fb) => fb.userFeedback.action === 'modify'
+    );
+
+    if (modifiedFeedbacks.length > 0) {
+      // 수정 메시지에서 새로운 키워드 추출
+      const extractedKeywords = this._extractKeywordsFromFeedback(
+        modifiedFeedbacks
+      );
+      newKeywords.push(
+        ...extractedKeywords.filter(
+          (kw) => !pattern.keywords.includes(kw) && kw.length > 1
+        )
+      );
+    }
+
+    // 3. 신뢰도 부스트 계산
+    if (stats.approvalRate > 0.8) {
+      confidenceBoost = 0.15; // 매우 좋음
+    } else if (stats.approvalRate > 0.6) {
+      confidenceBoost = 0.1; // 좋음
+    } else if (stats.approvalRate < 0.3) {
+      confidenceBoost = -0.1; // 나쁨 (페널티)
+    }
+
+    // 4. 업데이트 필요 여부 판단
+    if (newKeywords.length === 0 && removedKeywords.length === 0 &&
+        confidenceBoost === 0) {
+      return null;
+    }
+
+    return {
+      operation,
+      newKeywords,
+      removedKeywords,
+      confidenceBoost,
+      timestamp: Date.now(),
+      feedbackCount: feedbacks.length,
+    };
   }
 
   /**
-   * 신뢰도 추이 (일일 평균)
+   * 가장 덜 사용된 키워드 찾기
    */
-  getTrend(patternId: string, days: number = 7) {
-    const pattern = this.patterns.get(patternId);
-    if (!pattern) return null;
+  private _findLeastUsedKeywords(
+    feedbacks: FeedbackEntry[],
+    keywords: string[],
+    count: number
+  ): string[] {
+    const keywordUsage = new Map<string, number>();
 
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    const history = pattern.confidence_history.filter(h => h.date > cutoff && h.reason !== 'init');
-
-    // 일일 평균 계산
-    const dailyAvg = new Map<string, number[]>();
-    history.forEach(h => {
-      const dateKey = h.date.toISOString().split('T')[0];
-      if (!dailyAvg.has(dateKey)) {
-        dailyAvg.set(dateKey, []);
-      }
-      dailyAvg.get(dateKey)!.push(h.value);
+    keywords.forEach((kw) => {
+      keywordUsage.set(kw, 0);
     });
 
-    const trend = Array.from(dailyAvg.entries())
-      .map(([date, values]) => ({
-        date,
-        avg_confidence: values.reduce((a, b) => a + b) / values.length,
-        interactions: values.length,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+    feedbacks.forEach((fb) => {
+      keywords.forEach((kw) => {
+        if (fb.metadata.tags?.includes(kw)) {
+          keywordUsage.set(kw, (keywordUsage.get(kw) || 0) + 1);
+        }
+      });
+    });
 
-    return trend;
+    return Array.from(keywordUsage.entries())
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, count)
+      .map(([kw]) => kw);
   }
 
   /**
-   * 변형 분석 (인기 있는 변형)
+   * 피드백 메시지에서 키워드 추출
    */
-  getPopularVariations(patternId: string, limit: number = 5) {
-    const pattern = this.patterns.get(patternId);
-    if (!pattern) return [];
+  private _extractKeywordsFromFeedback(
+    feedbacks: FeedbackEntry[]
+  ): string[] {
+    const keywords: string[] = [];
+    const seenKeywords = new Set<string>();
 
-    return pattern.variations
-      .sort((a, b) => b.count - a.count)
-      .slice(0, limit)
-      .map(v => ({
-        text: v.text,
-        count: v.count,
-        approved: v.approved,
-      }));
+    feedbacks.forEach((fb) => {
+      if (fb.userFeedback.message) {
+        // 길이 2 이상의 연속 단어 추출
+        const words = fb.userFeedback.message
+          .split(/[\s,!?\.]+/)
+          .filter((w) => w.length >= 2);
+
+        words.forEach((word) => {
+          if (!seenKeywords.has(word)) {
+            keywords.push(word);
+            seenKeywords.add(word);
+          }
+        });
+      }
+    });
+
+    return keywords;
   }
 
   /**
-   * 학습 점수 계산
-   * (승인율 + 신뢰도) / 2
+   * 업데이트 히스토리 기록
    */
-  getLearningScore(patternId: string): number {
-    const stat = this.getStats(patternId);
-    if (!stat) return 0;
-
-    const normalizedConfidence = stat.current_confidence; // 0.5 ~ 0.98
-    const score = (stat.approval_rate + normalizedConfidence) / 2;
-    return Math.round(score * 100) / 100;
+  private _recordUpdate(operation: string, update: PatternUpdate): void {
+    if (!this.patternHistory.has(operation)) {
+      this.patternHistory.set(operation, []);
+    }
+    this.patternHistory.get(operation)!.push(update);
   }
 
   /**
-   * 개선 필요 패턴 (승인율 < 70%)
+   * 패턴 통계 조회
    */
-  getNeedsImprovement(threshold: number = 0.7): Array<{ id: string; approval_rate: number }> {
-    return this.getAllStats()
-      .filter(stat => stat.approval_rate < threshold && stat.total_interactions > 0)
-      .map(stat => ({
-        id: stat.id,
-        approval_rate: stat.approval_rate,
-      }));
+  getPatternStats(operation?: string): PatternStats[] {
+    if (operation) {
+      const stat = this.patternStats.get(operation);
+      return stat ? [stat] : [];
+    }
+    return Array.from(this.patternStats.values());
   }
 
   /**
-   * 모든 학습된 패턴 조회
+   * 패턴 업데이트 히스토리 조회
    */
-  getAll(): LearnedPattern[] {
-    return Array.from(this.patterns.values());
+  getUpdateHistory(operation?: string): PatternUpdate[] {
+    if (operation) {
+      return this.patternHistory.get(operation) || [];
+    }
+
+    const allUpdates: PatternUpdate[] = [];
+    this.patternHistory.forEach((updates) => {
+      allUpdates.push(...updates);
+    });
+    return allUpdates;
   }
 
   /**
-   * 패턴 조회
+   * 개선이 필요한 Operation 식별
    */
-  get(patternId: string): LearnedPattern | null {
-    return this.patterns.get(patternId) || null;
+  getOperationsNeedingImprovement(
+    approvalThreshold: number = 0.6
+  ): string[] {
+    return Array.from(this.patternStats.entries())
+      .filter(([_, stats]) => stats.approvalRate < approvalThreshold)
+      .map(([op, _]) => op);
+  }
+
+  /**
+   * 패턴 성능 요약
+   */
+  generateSummary(): string {
+    let summary = '\n';
+    summary += '╔════════════════════════════════════════════════════╗\n';
+    summary += '║         📚 Pattern Updater Summary                 ║\n';
+    summary += '╚════════════════════════════════════════════════════╝\n\n';
+
+    summary += `총 패턴: ${this.patternStats.size}\n`;
+    summary += `업데이트 기록: ${this.patternHistory.size} operations\n\n`;
+
+    summary += '🔧 패턴 상태:\n';
+    for (const [op, stats] of this.patternStats.entries()) {
+      const status =
+        stats.approvalRate > 0.8
+          ? '✅'
+          : stats.approvalRate > 0.6
+            ? '⚠️ '
+            : '❌';
+
+      summary += `  ${status} ${op}: ${(stats.approvalRate * 100).toFixed(1)}% 승인`;
+      summary += ` (${stats.totalFeedback}개 피드백)\n`;
+    }
+
+    summary += '\n📈 개선 영역:\n';
+    const needsImprovement = this.getOperationsNeedingImprovement();
+    if (needsImprovement.length === 0) {
+      summary += '  모든 패턴이 양호합니다 ✨\n';
+    } else {
+      needsImprovement.forEach((op) => {
+        const stats = this.patternStats.get(op)!;
+        summary += `  • ${op}: ${(stats.approvalRate * 100).toFixed(1)}% 승인\n`;
+      });
+    }
+
+    return summary;
   }
 }
-
-// 싱글톤 인스턴스
-export const patternUpdater = new PatternUpdater();
