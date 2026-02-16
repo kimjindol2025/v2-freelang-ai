@@ -277,7 +277,7 @@ y = 5`;
   print(x)`;
 
     const { blockParser } = parseWithBlocks(code);
-    const block = blockParser.getBlockAt(1);
+    const block = blockParser.getBlockAt(0); // FIXED: Block header 'if' is at line 0, not 1
 
     expect(block).toBeDefined();
     expect(block?.type).toBe('if');

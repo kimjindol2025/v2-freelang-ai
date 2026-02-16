@@ -117,10 +117,12 @@ export class BlockParser {
 
     // Find the base indent level (the header's indentation)
     let baseIndent = 0;
+    let actualBlockLine = stmt.line; // FIXED: Track the actual source line
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (line === stmt.text || line.startsWith(stmt.text)) {
         baseIndent = this.analyzer.getLineIndent(i);
+        actualBlockLine = i; // FIXED: Save the actual line number
         break;
       }
     }
@@ -161,7 +163,7 @@ export class BlockParser {
       header: stmt.text,
       body: bodyStatements,
       indent: baseIndent,
-      line: stmt.line,
+      line: actualBlockLine, // FIXED: Use actual source line number
     };
   }
 

@@ -59,8 +59,8 @@ describe('Phase 1 Validation - TypeInference Accuracy', () => {
     const inferred = typeEngine.inferFromTokens(tokens);
     const actual = {
       inputTypes: {},
-      outputType: inferred.find(i => i.name === 'return')?.type || 'unknown',
-      confidence: inferred.find(i => i.name === 'return')?.confidence || 0
+      outputType: inferred.find(i => i.name === 'output')?.type || 'unknown',  // FIXED: Look for 'output' not 'return'
+      confidence: inferred.find(i => i.name === 'output')?.confidence || 0
     };
 
     const passed = actual.outputType === expected.outputType;
