@@ -195,8 +195,9 @@ export class Phase2Compiler {
   private generateStubs(code: string, returnType: string): string {
     let result = code;
 
-    // Add return if missing
-    if (!result.includes('return') && returnType && returnType !== 'void') {
+    // Add return if missing (only check for actual return statements)
+    const hasReturn = /^\s*return\b/m.test(result);
+    if (!hasReturn && returnType && returnType !== 'void') {
       const stub = this.stubGenerator.generateStubForType(returnType);
       if (!result.trim().endsWith('return')) {
         result += `\n  return ${stub}`;

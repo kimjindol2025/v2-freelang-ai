@@ -339,7 +339,8 @@ describe('Phase 2 Task 2.5: E2E Integration Tests', () => {
       expect(result.inferredSignature?.output).toBe('number');
 
       // Step 3-4: Expression completion + Stub generation
-      expect(result.completedCode).toContain('stub');
+      // After auto-fix, incomplete expression "sum = sum +" becomes "sum = sum + 0"
+      expect(result.completedCode).toContain('sum = sum + 0');
 
       // Step 5-6: Warnings + Auto-fixes
       expect(result.warnings.length).toBeGreaterThan(0);

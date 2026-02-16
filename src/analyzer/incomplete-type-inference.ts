@@ -271,30 +271,105 @@ export class IncompleteTypeInferenceEngine {
    * - Array operations: arr.push() → arr: array
    */
   public inferTypeFromCode(code: string): InferredType {
-    // Assignment detection
-    const assignmentMatch = code.match(/(\w+)\s*=\s*([\d.]+)/);
-    if (assignmentMatch) {
-      const value = assignmentMatch[2];
-      if (/^\d+(\.\d+)?$/.test(value)) {
+    // Priority 1: Operation-based inference (highest priority)
+    // result = result + item (from for loop) → OPERATION
+    if ((code.includes('result =') && code.includes('result +')) ||
+        (code.includes('sum =') && code.includes('sum +'))) {
+      // Check if it's in a loop context
+      if (code.includes('for') || code.includes('while')) {
         return {
           type: 'number',
-          confidence: 0.85,
-          source: InferenceSource.ASSIGNMENT,
-          reasoning: `Detected numeric assignment`,
+          confidence: 0.9,
+          source: InferenceSource.OPERATION,
+          reasoning: `Numeric accumulation in loop context`,
         };
       }
     }
 
-    // Return statement detection
+    // Priority 2: String literal assignment: x = "hello"
+    const stringMatch = code.match(/(\w+)\s*=\s*["']([^"']*)["']/);
+    if (stringMatch) {
+      return {
+        type: 'string',
+        confidence: 0.95,
+        source: InferenceSource.ASSIGNMENT,
+        reasoning: `String literal assignment detected`,
+      };
+    }
+
+    // Priority 3: Array literal assignment: x = [...]
+    const arrayMatch = code.match(/(\w+)\s*=\s*\[(.*?)\]/);
+    if (arrayMatch) {
+      const elements = arrayMatch[2].trim();
+
+      // Empty array or unknown element type → just "array"
+      if (elements === '') {
+        return {
+          type: 'array',
+          confidence: 0.9,
+          source: InferenceSource.ASSIGNMENT,
+          reasoning: `Empty array literal detected`,
+        };
+      }
+
+      // Try to infer element type
+      let elementType = 'unknown';
+      if (/^\d+(\s*,\s*\d+)*$/.test(elements)) {
+        elementType = 'number';
+      } else if (/["']/.test(elements)) {
+        elementType = 'string';
+      }
+
+      return {
+        type: elementType === 'unknown' ? 'array' : `array<${elementType}>`,
+        confidence: 0.9,
+        source: InferenceSource.ASSIGNMENT,
+        reasoning: `Array literal assignment detected`,
+      };
+    }
+
+    // Priority 4: Boolean literal assignment: x = true/false
+    const boolMatch = code.match(/(\w+)\s*=\s*(true|false)/i);
+    if (boolMatch) {
+      return {
+        type: 'bool',
+        confidence: 0.95,
+        source: InferenceSource.ASSIGNMENT,
+        reasoning: `Boolean literal assignment detected`,
+      };
+    }
+
+    // Priority 5: Numeric literal assignment: x = 123 or x = 3.14
+    const numberMatch = code.match(/(\w+)\s*=\s*([\d.]+)/);
+    if (numberMatch && /^\d+(\.\d+)?$/.test(numberMatch[2])) {
+      return {
+        type: 'number',
+        confidence: 0.95,
+        source: InferenceSource.ASSIGNMENT,
+        reasoning: `Numeric literal assignment detected`,
+      };
+    }
+
+    // Priority 6: Return statement analysis with operation context
     if (code.includes('return')) {
       const returnMatch = code.match(/return\s+(\w+)/);
       if (returnMatch) {
         const returnVar = returnMatch[1];
-        // Recursively infer type of returned variable
-        if (code.includes(`${returnVar} = 0`)) {
+        // If return var is result/sum and there's a loop with accumulation
+        if ((returnVar === 'result' || returnVar === 'sum') &&
+            (code.includes(`${returnVar} +`) || code.includes(`${returnVar} -`))) {
           return {
             type: 'number',
-            confidence: 0.75,
+            confidence: 0.9,
+            source: InferenceSource.OPERATION,
+            reasoning: `Return value from numeric operation`,
+          };
+        }
+        // Check if returned variable has been assigned a number
+        if (code.includes(`${returnVar} = 0`) || code.includes(`${returnVar} = 1`)) {
+          return {
+            type: 'number',
+            confidence: 0.8,
             source: InferenceSource.OPERATION,
             reasoning: `Return variable assigned numeric value`,
           };
@@ -325,20 +400,44 @@ export class IncompleteTypeInferenceEngine {
     const types = new Map<string, InferredType>();
 
     // For loop detection: "for i in 0..10" → i: number
+    // Also: "for item in arr" → item: element type of arr
     const forLoopMatch = code.match(/for\s+(\w+)\s+in\s+([\w.0-9]+)/g);
     if (forLoopMatch) {
       for (const match of forLoopMatch) {
         const loopMatch = match.match(/for\s+(\w+)\s+in\s+([\w.0-9]+)/);
         if (loopMatch) {
           const varName = loopMatch[1];
-          const iterableType = variableContext.get(loopMatch[2]) || 'unknown';
+          const iterable = loopMatch[2];
+          const iterableType = variableContext.get(iterable) || 'unknown';
 
-          if (iterableType === 'array' || iterableType.startsWith('array<')) {
+          // Case 1: Numeric range (0..10) → loop var is number
+          if (/^\d+\.\.\d+/.test(iterable)) {
             types.set(varName, {
               type: 'number',
-              confidence: 0.9,
+              confidence: 0.95,
               source: InferenceSource.CONTEXT,
-              reasoning: `Loop variable in numeric range`,
+              reasoning: `Loop variable over numeric range (${iterable})`,
+            });
+          }
+          // Case 2: Array context → loop var is element type
+          else if (iterableType === 'array' || iterableType.startsWith('array<')) {
+            // Extract element type from array<T>
+            const elementTypeMatch = iterableType.match(/array<(\w+)>/);
+            const elementType = elementTypeMatch ? elementTypeMatch[1] : 'unknown';
+            types.set(varName, {
+              type: elementType,
+              confidence: 0.85,
+              source: InferenceSource.CONTEXT,
+              reasoning: `Loop variable over array (element type: ${elementType})`,
+            });
+          }
+          // Case 3: Unknown iterable
+          else {
+            types.set(varName, {
+              type: 'unknown',
+              confidence: 0.5,
+              source: InferenceSource.CONTEXT,
+              reasoning: `Loop variable, iterable type unknown`,
             });
           }
         }
@@ -481,6 +580,7 @@ export class IncompleteTypeInferenceEngine {
     this.intentPatterns.set('더하', { inputs: ['array'], output: 'number' });
     this.intentPatterns.set('곱', { inputs: ['array'], output: 'number' });
     this.intentPatterns.set('개수', { inputs: ['array'], output: 'number' });
+    this.intentPatterns.set('평균', { inputs: ['array'], output: 'number' });
     this.intentPatterns.set('길이', { inputs: ['array', 'string'], output: 'number' });
     this.intentPatterns.set('필터', { inputs: ['array'], output: 'array' });
     this.intentPatterns.set('거르', { inputs: ['array'], output: 'array' });

@@ -136,21 +136,30 @@ export class SuggestionEngine {
       // Skip empty/comment lines
       if (!trimmed || trimmed.startsWith('//')) continue;
 
-      // Check for trailing binary operators
-      const trailingOpMatch = trimmed.match(/(\+|-|\*|\/|%|&&|\|\||==|!=)\s*$/);
+      // Check for trailing binary operators and assignment
+      const trailingOpMatch = trimmed.match(/(\+|-|\*|\/|%|&&|\|\||==|!=|=)\s*$/);
       if (trailingOpMatch) {
+        let suggestion = `${trimmed} 0`;
+        let message = `Incomplete expression: operator "${trailingOpMatch[1]}" needs right operand`;
+
+        // For assignment operator, suggest appropriate value
+        if (trailingOpMatch[1] === '=') {
+          suggestion = `${trimmed} null`;
+          message = 'Incomplete assignment: missing value after assignment operator';
+        }
+
         this.warnings.push({
           type: WarningType.INCOMPLETE_EXPR,
           severity: SeverityLevel.ERROR,
           line: lineIdx + 1,
           column: line.length,
-          message: `Incomplete expression: operator "${trailingOpMatch[1]}" needs right operand`,
+          message: message,
           code: trimmed,
-          suggestion: `${trimmed} 0`,
+          suggestion: suggestion,
           autoFixable: true,
           confidence: 0.92,
           priority: 2,
-          reasoning: 'Binary operator at end of expression without right operand',
+          reasoning: 'Operator at end of expression without right operand',
         });
       }
 
@@ -174,27 +183,46 @@ export class SuggestionEngine {
       }
 
       // Check for empty if/for/while blocks
-      if (trimmed.match(/^(if|for|while)\s+.*\s+do\s*$/) ||
-          (trimmed.match(/^(if|for|while)/) && lineIdx + 1 < lines.length &&
-           lines[lineIdx + 1].trim() === '')) {
-        this.warnings.push({
-          type: WarningType.EMPTY_BLOCK,
-          severity: SeverityLevel.WARNING,
-          line: lineIdx + 1,
-          column: line.length - 2,
-          message: `Empty ${trimmed.split(/\s+/)[0]} block`,
-          code: trimmed,
-          suggestion: `${trimmed}\n  stub(void)`,
-          autoFixable: true,
-          confidence: 0.88,
-          priority: 3,
-          reasoning: 'Block statement has no body',
-        });
+      const isBlockStart = trimmed.match(/^(if|for|while)\s+.*\s+do\s*$/) ||
+                           trimmed.match(/^(if|for|while)\s+.*\s+do\s*$/);
+
+      if (isBlockStart) {
+        // Check if next line has more indentation (part of block)
+        let hasBlockContent = false;
+        if (lineIdx + 1 < lines.length) {
+          const nextLine = lines[lineIdx + 1];
+          const currentIndent = (line.match(/^\s*/) || [''])[0].length;
+          const nextIndent = (nextLine.match(/^\s*/) || [''])[0].length;
+          const nextTrimmed = nextLine.trim();
+
+          // If next line is not empty and has more indentation, it's part of the block
+          if (nextTrimmed && nextIndent > currentIndent) {
+            hasBlockContent = true;
+          }
+        }
+
+        // Only warn if block is truly empty (no content with proper indentation)
+        if (!hasBlockContent) {
+          this.warnings.push({
+            type: WarningType.EMPTY_BLOCK,
+            severity: SeverityLevel.WARNING,
+            line: lineIdx + 1,
+            column: line.length - 2,
+            message: `Empty ${trimmed.split(/\s+/)[0]} block`,
+            code: trimmed,
+            suggestion: `${trimmed}\n  stub(void)`,
+            autoFixable: true,
+            confidence: 0.88,
+            priority: 3,
+            reasoning: 'Block statement has no body',
+          });
+        }
       }
     }
 
     // Check for missing return statement in function
-    const hasReturn = code.includes('return');
+    // Only check for actual return statements, not the word in comments
+    const hasReturn = /^\s*return\b/m.test(code);
     if (!hasReturn && code.includes('output:')) {
       const outputMatch = code.match(/output:\s*(\w+)/);
       if (outputMatch) {
@@ -462,6 +490,7 @@ export class SuggestionEngine {
 
   /**
    * Helper: Find type mismatches
+   * Detects when same variable is assigned different types
    */
   private findTypeMismatches(
     code: string
@@ -475,18 +504,93 @@ export class SuggestionEngine {
       reasoning: string;
     }> = [];
 
-    // Example: Assignment type mismatch
-    // In real implementation, this would be more sophisticated
+    const lines = code.split('\n');
+    const varTypes = new Map<string, { type: string; line: number }>();
+
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx];
+      const trimmed = line.trim();
+
+      // Skip empty/comment lines
+      if (!trimmed || trimmed.startsWith('//')) continue;
+
+      // Find assignments: var = value
+      const assignMatch = trimmed.match(/^(\w+)\s*=\s*(.+)$/);
+      if (!assignMatch) continue;
+
+      const varName = assignMatch[1];
+      const valueExpr = assignMatch[2];
+
+      // Infer type from value expression
+      let inferredType = 'unknown';
+
+      if (valueExpr.match(/^"[^"]*"$/)) {
+        inferredType = 'string';
+      } else if (valueExpr.match(/^\[.*\]$/)) {
+        inferredType = 'array';
+      } else if (valueExpr.match(/^(true|false)$/)) {
+        inferredType = 'bool';
+      } else if (valueExpr.match(/^\d+(\.\d+)?$/)) {
+        inferredType = 'number';
+      } else if (valueExpr.includes('+') || valueExpr.includes('-') || valueExpr.includes('*') || valueExpr.includes('/')) {
+        // Arithmetic operation → number
+        if (!/["']/.test(valueExpr)) {
+          inferredType = 'number';
+        }
+      }
+
+      // Check for type mismatch
+      if (varTypes.has(varName)) {
+        const prevType = varTypes.get(varName)!.type;
+        const prevLine = varTypes.get(varName)!.line;
+
+        if (prevType !== inferredType && inferredType !== 'unknown' && prevType !== 'unknown') {
+          mismatches.push({
+            line: lineIdx + 1,
+            column: line.indexOf(varName),
+            message: `Type mismatch: "${varName}" was ${prevType} (line ${prevLine + 1}), now ${inferredType}`,
+            code: trimmed,
+            suggestion: `Declare type explicitly: ${varName}: ${inferredType}`,
+            reasoning: `Variable "${varName}" is assigned conflicting types across different lines`,
+          });
+        }
+      }
+
+      // Track variable type
+      if (inferredType !== 'unknown') {
+        varTypes.set(varName, { type: inferredType, line: lineIdx });
+      }
+    }
 
     return mismatches;
   }
 
   /**
    * Load historical learning data
+   * Initializes learning history from storage or creates empty
    */
   private loadLearningHistory(): void {
-    // In real implementation, load from file/database
-    // For now, initialize empty
+    // Initialize empty history
+    this.learningHistory = [];
+
+    // Try to load from localStorage if available (browser environment)
+    try {
+      const globalObj = typeof globalThis !== 'undefined' ? globalThis : global;
+      const storage = (globalObj as any).localStorage;
+      if (storage) {
+        const stored = storage.getItem('freelang_learning_history');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          this.learningHistory = parsed.map((entry: any) => ({
+            ...entry,
+            timestamp: new Date(entry.timestamp),
+          }));
+        }
+      }
+    } catch (error) {
+      // Silently fail in non-browser environments
+      // learningHistory remains empty
+    }
   }
 
   /**

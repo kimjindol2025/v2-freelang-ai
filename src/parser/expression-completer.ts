@@ -127,12 +127,13 @@ export class ExpressionCompleter {
 
     const missingParts: string[] = [];
 
-    // Scan tokens from end backwards
-    for (let i = tokens.length - 1; i >= 0; i--) {
-      const token = tokens[i];
+    // Check for trailing binary operators (ends with operator)
+    // Filter out NEWLINE, INDENT, DEDENT tokens
+    const meaningful = tokens.filter(t => !['NEWLINE', 'INDENT', 'DEDENT'].includes(t.type));
 
-      // Check for trailing binary operators
-      if (this.isBinaryOperator(token.type)) {
+    if (meaningful.length > 0) {
+      const lastToken = meaningful[meaningful.length - 1];
+      if (this.isBinaryOperator(lastToken.type)) {
         missingParts.push('right_operand');
         return {
           isComplete: false,
@@ -141,31 +142,41 @@ export class ExpressionCompleter {
         };
       }
 
-      // Check for unclosed parenthesis
-      if (token.type === 'LPAREN') {
-        const closeParen = tokens.slice(i).findIndex(t => t.type === 'RPAREN');
-        if (closeParen === -1) {
-          missingParts.push('closing_paren');
-        }
-      }
-
-      // Check for unclosed bracket
-      if (token.type === 'LBRACKET') {
-        const closeBracket = tokens.slice(i).findIndex(t => t.type === 'RBRACKET');
-        if (closeBracket === -1) {
-          missingParts.push('closing_bracket');
-          missingParts.push('index_expression');
-        }
-      }
-
-      // Check for trailing member access
-      if (token.type === 'DOT') {
+      // Check for trailing member access (ends with dot)
+      if (lastToken.type === 'DOT') {
         missingParts.push('member_name');
         return {
           isComplete: false,
           missingParts,
           suggestion: 'property() // incomplete member access',
         };
+      }
+    }
+
+    // Check for unmatched parentheses and brackets (forward scan)
+    let parenDepth = 0;
+    let bracketDepth = 0;
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+
+      if (token.type === 'LPAREN') parenDepth++;
+      else if (token.type === 'RPAREN') parenDepth--;
+      else if (token.type === 'LBRACKET') bracketDepth++;
+      else if (token.type === 'RBRACKET') bracketDepth--;
+    }
+
+    // Add missing parts if unbalanced
+    if (parenDepth > 0) {
+      for (let i = 0; i < parenDepth; i++) {
+        missingParts.push('closing_paren');
+      }
+    }
+
+    if (bracketDepth > 0) {
+      for (let i = 0; i < bracketDepth; i++) {
+        missingParts.push('closing_bracket');
+        missingParts.push('index_expression');  // Also need index value
       }
     }
 
@@ -182,39 +193,59 @@ export class ExpressionCompleter {
    * Example:
    * - "if condition do" → "if condition do stub(void)"
    * - "for x in arr do" → "for x in arr do stub(void)"
+   * - "if x { }" → "if x { stub(void) }"
    */
   public handleEmptyBlock(tokens: Token[]): {
     isEmpty: boolean;
     suggestion: string;
     insertPoint: number;
   } {
-    // Find "do" keyword
+    // Case 1: Look for "do" keyword first
     const doIndex = tokens.findIndex(t => t.type === 'DO');
-    if (doIndex === -1) {
-      return { isEmpty: false, suggestion: '', insertPoint: -1 };
+    if (doIndex !== -1) {
+      // Check if anything follows "do"
+      const afterDo = tokens.slice(doIndex + 1);
+
+      // Filter out whitespace/newline tokens
+      const meaningful = afterDo.filter(t => !['NEWLINE', 'INDENT', 'DEDENT'].includes(t.type));
+
+      if (meaningful.length === 0) {
+        return {
+          isEmpty: true,
+          suggestion: 'stub(void)  // empty block',
+          insertPoint: doIndex + 1,
+        };
+      }
+
+      // Check if block only contains closing tokens
+      if (meaningful.every(t => ['RBRACE', 'DEDENT', 'EOF'].includes(t.type))) {
+        return {
+          isEmpty: true,
+          suggestion: 'stub(void)  // empty block',
+          insertPoint: doIndex + 1,
+        };
+      }
     }
 
-    // Check if anything follows "do"
-    const afterDo = tokens.slice(doIndex + 1);
+    // Case 2: Look for empty { } braces
+    const lbraceIndex = tokens.findIndex(t => t.type === 'LBRACE');
+    if (lbraceIndex !== -1) {
+      // Find matching RBRACE
+      const rbraceIndex = tokens.findIndex((t, i) => i > lbraceIndex && t.type === 'RBRACE');
 
-    // Filter out whitespace/newline tokens
-    const meaningful = afterDo.filter(t => !['NEWLINE', 'INDENT', 'DEDENT'].includes(t.type));
+      if (rbraceIndex !== -1) {
+        // Check if anything is between { and }
+        const between = tokens.slice(lbraceIndex + 1, rbraceIndex);
+        const meaningful = between.filter(t => !['NEWLINE', 'INDENT', 'DEDENT'].includes(t.type));
 
-    if (meaningful.length === 0) {
-      return {
-        isEmpty: true,
-        suggestion: 'stub(void)  // empty block',
-        insertPoint: doIndex + 1,
-      };
-    }
-
-    // Check if block only contains closing tokens
-    if (meaningful.every(t => ['RBRACE', 'DEDENT', 'EOF'].includes(t.type))) {
-      return {
-        isEmpty: true,
-        suggestion: 'stub(void)  // empty block',
-        insertPoint: doIndex + 1,
-      };
+        if (meaningful.length === 0) {
+          return {
+            isEmpty: true,
+            suggestion: 'stub(void)  // empty block',
+            insertPoint: lbraceIndex + 1,
+          };
+        }
+      }
     }
 
     return { isEmpty: false, suggestion: '', insertPoint: -1 };

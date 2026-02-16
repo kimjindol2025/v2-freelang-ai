@@ -32,6 +32,8 @@ export interface InferenceContext {
 export class TypeInferenceEngine {
   private context: InferenceContext;
   private typePatterns: Map<string, string[]> = new Map();
+  private intentPatterns: Map<string, string> = new Map(); // Intent → Type mapping
+  private intentPatternsInitialized: boolean = false;
 
   constructor() {
     this.context = {
@@ -41,6 +43,39 @@ export class TypeInferenceEngine {
       variableAssignments: new Map(),
     };
     this.initializePatterns();
+    // Defer intent pattern initialization (lazy loading)
+  }
+
+  /**
+   * Initialize intent-based type patterns
+   * Maps natural language intent keywords to return types
+   */
+  private initializeIntentPatterns(): void {
+    // Number operations
+    this.intentPatterns.set('합', 'number');           // sum
+    this.intentPatterns.set('합계', 'number');         // total
+    this.intentPatterns.set('평균', 'number');         // average
+    this.intentPatterns.set('카운트', 'number');       // count
+    this.intentPatterns.set('길이', 'number');         // length
+    this.intentPatterns.set('계산', 'number');         // calculate
+
+    // String operations
+    this.intentPatterns.set('문자열', 'string');       // string
+    this.intentPatterns.set('연결', 'string');         // concatenate
+    this.intentPatterns.set('포맷', 'string');         // format
+    this.intentPatterns.set('변환', 'string');         // convert
+
+    // Array operations
+    this.intentPatterns.set('필터', 'array');          // filter
+    this.intentPatterns.set('매핑', 'array');          // map
+    this.intentPatterns.set('정렬', 'array');          // sort
+    this.intentPatterns.set('목록', 'array');          // list
+    this.intentPatterns.set('배열', 'array');          // array
+
+    // Boolean/logic
+    this.intentPatterns.set('검증', 'bool');           // validate
+    this.intentPatterns.set('확인', 'bool');           // check
+    this.intentPatterns.set('비교', 'bool');           // compare
   }
 
   /**
@@ -78,6 +113,48 @@ export class TypeInferenceEngine {
       '\\.(map|filter|reduce)',   // array methods
       '(for .* in)',              // for loops → array
     ]);
+  }
+
+  /**
+   * Infer return type from intent (natural language)
+   * Maps Korean intent keywords to return types
+   * Uses lazy loading for intent patterns
+   */
+  public inferFromIntent(intent: string): { type: string; confidence: number } {
+    if (!intent) {
+      return { type: 'any', confidence: 0 };
+    }
+
+    // Lazy initialize intent patterns on first use
+    if (!this.intentPatternsInitialized) {
+      this.initializeIntentPatterns();
+      this.intentPatternsInitialized = true;
+    }
+
+    const lowerIntent = intent.toLowerCase();
+
+    // Check each intent pattern
+    for (const [keyword, returnType] of this.intentPatterns) {
+      if (lowerIntent.includes(keyword)) {
+        return { type: returnType, confidence: 0.75 };
+      }
+    }
+
+    // Try English keywords as fallback
+    if (lowerIntent.includes('sum') || lowerIntent.includes('total')) {
+      return { type: 'number', confidence: 0.75 };
+    }
+    if (lowerIntent.includes('concat') || lowerIntent.includes('format')) {
+      return { type: 'string', confidence: 0.75 };
+    }
+    if (lowerIntent.includes('filter') || lowerIntent.includes('map')) {
+      return { type: 'array', confidence: 0.75 };
+    }
+    if (lowerIntent.includes('check') || lowerIntent.includes('validate')) {
+      return { type: 'bool', confidence: 0.75 };
+    }
+
+    return { type: 'any', confidence: 0 };
   }
 
   /**
@@ -424,6 +501,7 @@ export class TypeInferenceEngine {
 
     // 4. Check function calls
 
+    // Built-in functions
     if (expr.includes('parseInt') || expr.includes('parseFloat') || expr.includes('Number(')) {
       return 'number';
     }
@@ -432,6 +510,29 @@ export class TypeInferenceEngine {
     if (expr.includes('String(')) return 'string';
     if (expr.includes('Array.')) return 'array';
     if (expr.includes('Boolean(')) return 'bool';
+
+    // User-defined function calls: funcName(...)
+    const funcCallMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
+    if (funcCallMatch) {
+      const funcName = funcCallMatch[1];
+      if (this.context.functions.has(funcName)) {
+        const funcInfo = this.context.functions.get(funcName)!;
+        return funcInfo.returns;
+      }
+      // If function not registered, try pattern matching on function name
+      if (funcName.includes('get') || funcName.includes('sum') || funcName.includes('count')) {
+        return 'number';
+      }
+      if (funcName.includes('format') || funcName.includes('toString')) {
+        return 'string';
+      }
+      if (funcName.includes('filter') || funcName.includes('map')) {
+        return 'array';
+      }
+      if (funcName.includes('is') || funcName.includes('has') || funcName.includes('check')) {
+        return 'bool';
+      }
+    }
 
     // 5. Check binary operations with IMPROVED context awareness
 
@@ -575,6 +676,7 @@ export class TypeInferenceEngine {
       loopVariables: new Map(),
       variableAssignments: new Map(),
     };
+    // Keep intent patterns initialized (no need to reset)
   }
 
   /**
@@ -592,6 +694,30 @@ export class TypeInferenceEngine {
     } else {
       return `${varName}: ${type}? // uncertain`;
     }
+  }
+
+  /**
+   * Parse and handle generic types like array<number> or array<array<string>>
+   */
+  public parseGenericType(typeStr: string): string {
+    // Handle nested generics: array<array<number>> → stays as is
+    // Handle simple generics: array<number> → stays as is
+    // This is a placeholder for full generic type support
+
+    typeStr = typeStr.trim();
+
+    // Check if it's a generic type
+    if (typeStr.includes('<') && typeStr.includes('>')) {
+      // Already a generic type, keep as is
+      return typeStr;
+    }
+
+    // Check if it's a simple type that could have generics
+    if (typeStr === 'array') {
+      return 'array<any>';  // Default element type
+    }
+
+    return typeStr;
   }
 
   /**

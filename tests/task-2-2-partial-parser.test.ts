@@ -10,7 +10,14 @@ import {
   CompletionType,
   createExpressionCompleter,
 } from '../src/parser/expression-completer';
-import { Token } from '../src/parser/token';
+
+// Token interface for testing
+interface Token {
+  type: string;
+  value: string;
+  line: number;
+  column: number;
+}
 
 describe('Task 2.2: Partial Parser Extension', () => {
   let completer: ExpressionCompleter;
