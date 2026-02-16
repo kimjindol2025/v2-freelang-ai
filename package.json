@@ -47,5 +47,20 @@
   },
   "bugs": {
     "url": "https://gogs.dclub.kr/kim/v2-freelang-ai/issues"
+  },
+  "kpm": {
+    "category": "language-runtime",
+    "subcategory": "ai-compiler",
+    "tags": ["ai", "code-generation", "c-backend", "freelang", "intent-parser"],
+    "entry": "dist/cli/index.js",
+    "cli": true,
+    "version": "2.0.0-beta",
+    "dependencies": [],
+    "exports": {
+      "cli": "./dist/cli/index.js",
+      "engine": "./dist/engine/auto-header.js",
+      "parser": "./dist/parser/parser.js",
+      "dashboard": "./dist/dashboard/dashboard.js"
+    }
   }
 }

@@ -24,13 +24,12 @@ export class BatchMode {
    */
   async readInputFile(filepath: string): Promise<string[]> {
     try {
-      // 실제 구현에서는 fs를 사용
-      // const fs = require('fs');
-      // const content = fs.readFileSync(filepath, 'utf-8');
-      // return content.split('\n').filter(line => line.trim());
-
-      // 테스트용 목업
-      return [];
+      const fs = require('fs');
+      const content = fs.readFileSync(filepath, 'utf-8');
+      return content
+        .split('\n')
+        .map((line: string) => line.trim())
+        .filter((line: string) => line && !line.startsWith('#'));
     } catch (error) {
       throw new Error(`파일 읽기 실패: ${filepath}`);
     }
@@ -95,11 +94,9 @@ export class BatchMode {
    */
   async saveResults(filepath: string): Promise<boolean> {
     try {
-      // 실제 구현에서는 fs를 사용
-      // const fs = require('fs');
-      // fs.writeFileSync(filepath, JSON.stringify(this.results, null, 2));
-
-      // 테스트용
+      const fs = require('fs');
+      const content = this.exportAsJSON();
+      fs.writeFileSync(filepath, content);
       return true;
     } catch (error) {
       return false;
