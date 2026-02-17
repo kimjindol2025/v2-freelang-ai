@@ -56,7 +56,7 @@ echo ""
 
 # Start C server
 echo "[LAUNCH] Starting C server on port $C_PORT..."
-../../dist/stdlib/static-server $C_PORT "$ROOT_PATH" > /tmp/c_server.log 2>&1 &
+../../../dist/stdlib/static-server $C_PORT "$ROOT_PATH" > /tmp/c_server.log 2>&1 &
 C_PID=$!
 sleep 2
 
