@@ -25,7 +25,7 @@
   "author": "Claude AI",
   "license": "MIT",
   "bin": {
-    "freelang": "./dist/cli/index.js"
+    "freelang": "./bin/freelang"
   },
   "dependencies": {
     "chalk": "^4.1.2",
