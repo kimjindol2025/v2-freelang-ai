@@ -1,0 +1,146 @@
+/**
+ * FreeLang File System Module (Phase 16 Week 3)
+ * Async file I/O with libuv integration
+ * Uses Promise Bridge for async/await support
+ */
+
+// Callback registry (timer.c pattern)
+let callback_registry = [];
+let next_callback_id = 0;
+
+fn register_callback(fn) => {
+  let id = next_callback_id;
+  next_callback_id = next_callback_id + 1;
+  callback_registry[id] = fn;
+  return id;
+};
+
+fn unregister_callback(id) => {
+  callback_registry[id] = null;
+};
+
+// ────────────────────────────────────────
+// Public API
+// ────────────────────────────────────────
+
+/**
+ * Read file asynchronously
+ * @param path - file path to read
+ * @returns Promise that resolves to file content as string
+ */
+export async fn readFile(path) => {
+  let callback_id = register_callback((result) => result);
+
+  fl_fs_read_async(path, callback_id);
+
+  // await is handled by Promise Bridge
+  let content = await callback_id;
+  unregister_callback(callback_id);
+
+  return content;
+};
+
+/**
+ * Write file asynchronously
+ * @param path - file path to write to
+ * @param content - content to write
+ * @returns Promise that resolves when write completes
+ */
+export async fn writeFile(path, content) => {
+  let callback_id = register_callback((result) => result);
+
+  fl_fs_write_async(path, content, callback_id);
+
+  await callback_id;
+  unregister_callback(callback_id);
+};
+
+/**
+ * Append content to file asynchronously
+ * @param path - file path to append to
+ * @param content - content to append
+ * @returns Promise that resolves when append completes
+ */
+export async fn appendFile(path, content) => {
+  let callback_id = register_callback((result) => result);
+  fl_fs_append_async(path, content, callback_id);
+  await callback_id;
+  unregister_callback(callback_id);
+};
+
+/**
+ * Delete file asynchronously
+ * @param path - file path to delete
+ * @returns Promise that resolves when file is deleted
+ */
+export async fn deleteFile(path) => {
+  let callback_id = register_callback((result) => result);
+  fl_fs_unlink_async(path, callback_id);
+  await callback_id;
+  unregister_callback(callback_id);
+};
+
+/**
+ * Rename file asynchronously
+ * @param old_path - current file path
+ * @param new_path - new file path
+ * @returns Promise that resolves when file is renamed
+ */
+export async fn renameFile(old_path, new_path) => {
+  let callback_id = register_callback((result) => result);
+  fl_fs_rename_async(old_path, new_path, callback_id);
+  await callback_id;
+  unregister_callback(callback_id);
+};
+
+/**
+ * Create directory asynchronously
+ * @param path - directory path to create
+ * @param mode - file mode (default: 0755)
+ * @returns Promise that resolves when directory is created
+ */
+export async fn mkdir(path, mode) => {
+  let callback_id = register_callback((result) => result);
+  let actual_mode = mode || 0755;
+  fl_fs_mkdir_async(path, actual_mode, callback_id);
+  await callback_id;
+  unregister_callback(callback_id);
+};
+
+/**
+ * Remove directory asynchronously
+ * @param path - directory path to remove
+ * @returns Promise that resolves when directory is removed
+ */
+export async fn rmdir(path) => {
+  let callback_id = register_callback((result) => result);
+  fl_fs_rmdir_async(path, callback_id);
+  await callback_id;
+  unregister_callback(callback_id);
+};
+
+/**
+ * Get file statistics asynchronously
+ * @param path - file path to stat
+ * @returns Promise that resolves to file stats
+ */
+export async fn stat(path) => {
+  let callback_id = register_callback((result) => result);
+  fl_fs_stat_async(path, callback_id);
+  let stats = await callback_id;
+  unregister_callback(callback_id);
+  return stats;
+};
+
+/**
+ * Check if file exists asynchronously
+ * @param path - file path to check
+ * @returns Promise that resolves to "true" or "false"
+ */
+export async fn exists(path) => {
+  let callback_id = register_callback((result) => result);
+  fl_fs_exists_async(path, callback_id);
+  let result = await callback_id;
+  unregister_callback(callback_id);
+  return result;
+};

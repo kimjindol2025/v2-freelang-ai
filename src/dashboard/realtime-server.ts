@@ -473,11 +473,15 @@ export class RealtimeDashboardServer {
       // Phase 15 Day 1: 배처 정리
       this.batcher.stop();
       const batchingStats = this.batcher.getStats();
-      console.log(`📊 Batching stats - Messages: ${batchingStats.totalMessages}, Saved: ${batchingStats.bandwidthSaved} bytes`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`📊 Batching stats - Messages: ${batchingStats.totalMessages}, Saved: ${batchingStats.bandwidthSaved} bytes`);
+      }
 
       // Phase 15 Day 2: 압축 정리
       const compressionStats = this.compressor.getStats();
-      console.log(`🗜️ Compression stats - Messages: ${compressionStats.totalMessages}, Saved: ${(compressionStats.bandwidthSaved / 1024).toFixed(1)}KB`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`🗜️ Compression stats - Messages: ${compressionStats.totalMessages}, Saved: ${(compressionStats.bandwidthSaved / 1024).toFixed(1)}KB`);
+      }
 
       // 모든 클라이언트 연결 종료
       this.clients.forEach(client => {
@@ -491,7 +495,9 @@ export class RealtimeDashboardServer {
 
       if (this.httpServer) {
         this.httpServer.close(() => {
-          console.log('Realtime server stopped');
+          if (process.env.NODE_ENV !== 'test') {
+            console.log('Realtime server stopped');
+          }
           resolve();
         });
       } else {

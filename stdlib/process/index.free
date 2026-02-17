@@ -1,267 +1,114 @@
 /**
- * FreeLang stdlib/process
- * Process management and PM2 control
+ * FreeLang Process Module (Phase 16 Week 4)
+ * Process spawning and management
+ * Full implementation in Phase 18 Week 9-10
+ */
+
+// Callback registry (timer.c pattern)
+let callback_registry = [];
+let next_callback_id = 0;
+
+fn register_callback(fn) => {
+  let id = next_callback_id;
+  next_callback_id = next_callback_id + 1;
+  callback_registry[id] = fn;
+  return id;
+};
+
+fn unregister_callback(id) => {
+  callback_registry[id] = null;
+};
+
+// ────────────────────────────────────────
+// Process Spawning (Week 9)
+// ────────────────────────────────────────
+
+/**
+ * Spawn a child process
+ * @param command - command to execute
+ * @param args - array of arguments
+ * @param options - spawn options (stdio, env, cwd)
+ * @returns Promise that resolves to process handle
  *
- * Example:
- *   import process from "stdlib/process"
+ * TODO (Phase 18 Week 9):
+ * - Implement uv_spawn() call
+ * - Setup stdin/stdout/stderr pipes
+ * - Return process handle
+ * - Example usage:
+ *   let proc = await spawn("ls", ["-la", "/tmp"])
+ *   let output = await proc.output()
+ *   let exitCode = await proc.wait()
+ */
+export async fn spawn(command, args, options) => {
+  throw "Process.spawn() not implemented (Week 9 Phase 18)";
+};
+
+/**
+ * Execute command and return output
+ * @param command - command to execute
+ * @param args - array of arguments
+ * @returns Promise that resolves to { stdout, stderr, exitCode }
  *
- *   // PM2 control
- *   process.pm2.list()
- *   process.pm2.restart("api-server")
- *   process.pm2.scale("worker", 5)
- *   process.pm2.stop("background-job")
+ * TODO (Phase 18 Week 9):
+ * - Spawn process
+ * - Capture stdout + stderr
+ * - Wait for exit
+ * - Return combined output
+ * - Example usage:
+ *   let result = await exec("node", ["--version"])
+ *   println("Node: " + result.stdout)
+ */
+export async fn exec(command, args) => {
+  throw "Process.exec() not implemented (Week 9 Phase 18)";
+};
+
+// ────────────────────────────────────────
+// Process Stream Operations (Week 9)
+// ────────────────────────────────────────
+
+/**
+ * Process class (returned by spawn)
+ * TODO (Week 9):
+ * - pid: process ID
+ * - stdout: readable stream
+ * - stderr: readable stream
+ * - stdin: writable stream
+ * - Methods: kill(), wait(), waitFor()
+ */
+
+// ────────────────────────────────────────
+// Process Pool Management (Week 10)
+// ────────────────────────────────────────
+
+/**
+ * List running processes
+ * @returns Promise that resolves to array of process info
  *
- *   // Spawn subprocess
- *   child = process.spawn("ls", ["-la", "/home"])
- *   output = child.wait()
+ * TODO (Phase 18 Week 10):
+ * - Return array of running processes
+ * - Each with: { pid, command, memory, cpu, uptime }
  */
-
-import http from "../http/index.free"
-import json from "../json/index.free"
-
-// PM2 Configuration
-const PM2_API_URL = "http://localhost:50202/api/pm2"
-const TIMEOUT = 5000
+export async fn listProcesses() => {
+  throw "Process.listProcesses() not implemented (Week 10 Phase 18)";
+};
 
 /**
- * PM2 Module - Process Manager 2 integration
- * Communicates with PM2 over HTTP API
+ * Get process info
+ * @param pid - process ID
+ * @returns Promise that resolves to process info
+ *
+ * TODO (Week 10):
+ * - Get CPU usage, memory, status
  */
-export const pm2 = {
-  /**
-   * List all PM2 processes
-   * @returns {Array} Process list
-   */
-  list: async () => {
-    try {
-      let response = await http.get(PM2_API_URL + "/list")
-      if response.statusCode == 200 {
-        return json.parse(response.body)
-      }
-      return []
-    } catch (e) {
-      console.error("[pm2.list] Error:", e.message)
-      return []
-    }
-  },
+export async fn getProcessInfo(pid) => {
+  throw "Process.getProcessInfo() not implemented (Week 10 Phase 18)";
+};
 
-  /**
-   * Start a process
-   * @param {string} name - Process name
-   * @param {string} script - Script path
-   * @returns {object} Result
-   */
-  start: async (name, script) => {
-    try {
-      let body = json.stringify({ name: name, script: script })
-      let response = await http.post(PM2_API_URL + "/start", body)
-      if response.statusCode >= 200 && response.statusCode < 300 {
-        return { success: true, message: `Started ${name}` }
-      }
-      return { success: false, message: response.body }
-    } catch (e) {
-      console.error("[pm2.start] Error:", e.message)
-      return { success: false, message: e.message }
-    }
-  },
+// ────────────────────────────────────────
+// Process Signals (Week 9)
+// ────────────────────────────────────────
 
-  /**
-   * Restart a process
-   * @param {string} name - Process name
-   * @returns {object} Result
-   */
-  restart: async (name) => {
-    try {
-      let response = await http.post(PM2_API_URL + "/restart/" + name, "")
-      if response.statusCode >= 200 && response.statusCode < 300 {
-        return { success: true, message: `Restarted ${name}` }
-      }
-      return { success: false, message: response.body }
-    } catch (e) {
-      console.error("[pm2.restart] Error:", e.message)
-      return { success: false, message: e.message }
-    }
-  },
-
-  /**
-   * Stop a process
-   * @param {string} name - Process name
-   * @returns {object} Result
-   */
-  stop: async (name) => {
-    try {
-      let response = await http.post(PM2_API_URL + "/stop/" + name, "")
-      if response.statusCode >= 200 && response.statusCode < 300 {
-        return { success: true, message: `Stopped ${name}` }
-      }
-      return { success: false, message: response.body }
-    } catch (e) {
-      console.error("[pm2.stop] Error:", e.message)
-      return { success: false, message: e.message }
-    }
-  },
-
-  /**
-   * Delete a process from PM2
-   * @param {string} name - Process name
-   * @returns {object} Result
-   */
-  delete: async (name) => {
-    try {
-      let response = await http.post(PM2_API_URL + "/delete/" + name, "")
-      if response.statusCode >= 200 && response.statusCode < 300 {
-        return { success: true, message: `Deleted ${name}` }
-      }
-      return { success: false, message: response.body }
-    } catch (e) {
-      console.error("[pm2.delete] Error:", e.message)
-      return { success: false, message: e.message }
-    }
-  },
-
-  /**
-   * Scale process instances
-   * @param {string} name - Process name
-   * @param {number} count - Number of instances
-   * @returns {object} Result
-   */
-  scale: async (name, count) => {
-    try {
-      let body = json.stringify({ count: count })
-      let response = await http.post(PM2_API_URL + "/scale/" + name, body)
-      if response.statusCode >= 200 && response.statusCode < 300 {
-        return { success: true, message: `Scaled ${name} to ${count} instances` }
-      }
-      return { success: false, message: response.body }
-    } catch (e) {
-      console.error("[pm2.scale] Error:", e.message)
-      return { success: false, message: e.message }
-    }
-  },
-
-  /**
-   * Get process info
-   * @param {string} name - Process name
-   * @returns {object} Process info
-   */
-  describe: async (name) => {
-    try {
-      let response = await http.get(PM2_API_URL + "/describe/" + name)
-      if response.statusCode == 200 {
-        return json.parse(response.body)
-      }
-      return null
-    } catch (e) {
-      console.error("[pm2.describe] Error:", e.message)
-      return null
-    }
-  },
-
-  /**
-   * Kill daemon
-   * @returns {object} Result
-   */
-  kill: async () => {
-    try {
-      let response = await http.post(PM2_API_URL + "/kill", "")
-      return { success: response.statusCode == 200 }
-    } catch (e) {
-      console.error("[pm2.kill] Error:", e.message)
-      return { success: false }
-    }
-  },
-}
-
-/**
- * Process spawn - Run subprocess
- */
-export class Process {
-  constructor(command, args) {
-    this.command = command
-    this.args = args || []
-    this.pid = 0
-    this.output = ""
-    this.error = ""
-  }
-
-  /**
-   * Wait for process to complete
-   * @returns {string} Output
-   */
-  async wait() {
-    // TODO: Implement using libuv uv_spawn
-    // For now, return mock output
-    return this.output
-  }
-
-  /**
-   * Kill process
-   */
-  kill() {
-    // TODO: Implement using process.kill(pid)
-    console.log(`[process] Killing PID ${this.pid}`)
-  }
-}
-
-/**
- * Spawn subprocess
- * @param {string} command - Command to execute
- * @param {Array} args - Command arguments
- * @returns {Process} Process handle
- */
-export const spawn = (command, args) => {
-  return new Process(command, args)
-}
-
-/**
- * Execute shell command
- * @param {string} cmd - Shell command
- * @returns {Promise<string>} Output
- */
-export const exec = async (cmd) => {
-  // TODO: Implement using popen or libuv subprocess
-  console.log(`[process.exec] ${cmd}`)
-  return ""
-}
-
-/**
- * Get current process information
- */
-export const info = {
-  pid: () => {
-    // Return current process ID
-    return 0
-  },
-
-  ppid: () => {
-    // Return parent process ID
-    return 0
-  },
-
-  uptime: () => {
-    // Return process uptime in seconds
-    return 0
-  },
-
-  memory: () => {
-    // Return memory usage in bytes
-    return 0
-  },
-
-  cpu: () => {
-    // Return CPU usage percentage
-    return 0
-  },
-
-  cwd: () => {
-    // Return current working directory
-    return "/home/kim"
-  },
-}
-
-export default {
-  pm2,
-  spawn,
-  exec,
-  info,
-}
+export let SIGTERM = 15;  // Termination signal
+export let SIGKILL = 9;   // Kill signal
+export let SIGINT = 2;    // Interrupt signal
+export let SIGHUP = 1;    // Hangup signal
