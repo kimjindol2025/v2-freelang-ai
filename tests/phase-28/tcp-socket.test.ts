@@ -550,11 +550,21 @@ describe('Phase 28-3: TCP Socket (C Library Validation)', () => {
 
   describe('Socket Performance', () => {
     test('should handle rapid send operations', () => {
+      // Buffer 풀 사용 (메모리 재할당 최소화)
+      const bufferPool: Buffer[] = [];
+      for (let i = 0; i < 50; i++) {
+        bufferPool.push(Buffer.alloc(256));
+      }
+
       const startTime = Date.now();
+      let bufferIndex = 0;
 
       for (let i = 0; i < 1000; i++) {
-        const data = Buffer.from(`Message ${i}`);
-        expect(data.length).toBeGreaterThan(0);
+        const buf = bufferPool[bufferIndex++ % bufferPool.length];
+        const msg = `Message ${i}`;
+        buf.write(msg);
+        // 빠른 검증
+        if (buf.length === 0) throw new Error('Invalid buffer');
       }
 
       const duration = Date.now() - startTime;

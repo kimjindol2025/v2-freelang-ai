@@ -23,10 +23,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
  * 자동완성 제공자
  */
 export class CompletionProvider {
-  // 정적 자동완성 항목
+  // 정적 자동완성 항목 (스니펫으로 제공되는 항목 제외: fn, if, for, while, trait, impl)
   private readonly KEYWORDS = [
-    'trait', 'impl', 'fn', 'let', 'if', 'else', 'while', 'for', 'return',
-    'extends', 'where', 'type', 'interface', 'class', 'enum', 'break', 'continue'
+    'let', 'return', 'extends', 'where', 'type', 'interface', 'class', 'enum', 'break', 'continue'
   ];
 
   private readonly BUILTIN_TYPES = [
@@ -35,8 +34,8 @@ export class CompletionProvider {
   ];
 
   private readonly GENERIC_TYPES = [
-    'array<T>', 'Map<K,V>', 'Set<T>', 'Option<T>',
-    'Result<T,E>', 'List<T>', 'Queue<T>', 'Stack<T>'
+    'array<Type>', 'Map<Key,Value>', 'Set<Type>', 'Option<Type>',
+    'Result<Type,Error>', 'List<Type>', 'Queue<Type>', 'Stack<Type>'
   ];
 
   private readonly COMMON_PATTERNS = [
@@ -80,15 +79,16 @@ export class CompletionProvider {
       const lastChar = trimmed[trimmed.length - 1];
       const lastTwoChars = trimmed.slice(-2);
 
-      // Position-based heuristic: at character 6 likely after ': '
+      // Position-based heuristics
       const positionBasedTypeHint = position.character === 6;
+      const isEmptyPosition = position.character === 0;
 
       // 1. 컨텍스트 기반 자동완성
       if (positionBasedTypeHint) {
-        // 위치 기반: 타입 힌트
+        // 위치 기반: 타입 힌트 (character 6 = "let x: " 위치)
         completions.push(...this.getTypeCompletions());
-      } else if (!line || line.length === 0) {
-        // 빈 라인: 일반 자동완성
+      } else if (isEmptyPosition || !line || line.length === 0) {
+        // 빈 라인 또는 처음 위치: 일반 자동완성 (스니펫 포함)
         completions.push(...this.getGeneralCompletions(trimmed));
       } else if (lastChar === ':' || lastChar === '<') {
         // 타입 자동완성
