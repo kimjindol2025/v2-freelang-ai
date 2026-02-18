@@ -29,6 +29,7 @@ export enum TokenType {
   FALSE = 'FALSE',
   NULL = 'NULL',
   IN = 'IN',
+  OF = 'OF',  // Phase 2: for...of loop support
   AS = 'AS',
   IS = 'IS',
   PUB = 'PUB',
@@ -150,6 +151,7 @@ export const KEYWORDS: Record<string, TokenType> = {
   'false': TokenType.FALSE,
   'null': TokenType.NULL,
   'in': TokenType.IN,
+  'of': TokenType.OF,  // Phase 2: for...of loop support
   'as': TokenType.AS,
   'is': TokenType.IS,
   'pub': TokenType.PUB,

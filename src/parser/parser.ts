@@ -52,6 +52,7 @@ import {
   VariableDeclaration,
   IfStatement,
   ForStatement,
+  ForOfStatement,  // Phase 2: for...of loop support
   WhileStatement,
   ReturnStatement,
   BlockStatement
@@ -888,23 +889,79 @@ export class Parser {
   }
 
   /**
-   * Phase 16: For 문 파싱
+   * Phase 2: For/ForOf 문 파싱
    *
-   * 형식: for i in range(10) { ... }
+   * 지원 형식:
+   *   - for i in range(10) { ... }           (전통적)
+   *   - for i of array { ... }               (for...of)
+   *   - for let i of array { ... }           (명시적 let)
+   *   - for (let i of array) { ... }         (괄호 포함)
+   *
+   * 구현:
+   *   - in 키워드: ForStatement (범위 반복)
+   *   - of 키워드: ForOfStatement (배열 요소 반복)
    */
-  private parseForStatement(): ForStatement {
+  private parseForStatement(): ForStatement | ForOfStatement {
     this.expect(TokenType.FOR, 'Expected "for"');
-    const variable = this.expect(TokenType.IDENT, 'Expected loop variable').value;
-    this.expect(TokenType.IN, 'Expected "in"');
-    const iterable = this.parseExpression();
-    const body = this.parseBlockStatement();
 
-    return {
-      type: 'for',
-      variable,
-      iterable,
-      body
-    };
+    // 선택적 괄호: for (
+    const hasParens = this.match(TokenType.LPAREN);
+
+    // 선택적 let 키워드: for [let] i
+    const isLet = this.match(TokenType.LET);
+
+    // 변수 이름: for i
+    const variable = this.expect(TokenType.IDENT, 'Expected loop variable').value;
+
+    // 선택적 타입 어노테이션: for i: array<string>
+    let variableType: string | undefined;
+    if (this.check(TokenType.COLON)) {
+      this.advance();
+      variableType = this.parseType();
+    }
+
+    // 구분: in vs of
+    if (this.match(TokenType.IN)) {
+      // Traditional for...in loop (range-based)
+      const iterable = this.parseExpression();
+
+      if (hasParens) {
+        this.expect(TokenType.RPAREN, 'Expected ")"');
+      }
+
+      const body = this.parseBlockStatement();
+
+      return {
+        type: 'for',
+        variable,
+        iterable,
+        body
+      };
+    } else if (this.match(TokenType.OF)) {
+      // for...of loop (array iteration)
+      const iterable = this.parseExpression();
+
+      if (hasParens) {
+        this.expect(TokenType.RPAREN, 'Expected ")"');
+      }
+
+      const body = this.parseBlockStatement();
+
+      return {
+        type: 'forOf',
+        variable,
+        variableType,
+        iterable,
+        body,
+        isLet
+      };
+    } else {
+      throw new ParseError(
+        this.current().line,
+        this.current().column,
+        'Expected "in" or "of" in for statement'
+      );
+    }
   }
 
   /**

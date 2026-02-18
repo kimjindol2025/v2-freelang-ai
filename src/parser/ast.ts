@@ -164,6 +164,7 @@ export type Statement =
   | VariableDeclaration
   | IfStatement
   | ForStatement
+  | ForOfStatement  // Phase 2: for...of loop support
   | WhileStatement
   | ReturnStatement
   | BlockStatement;
@@ -193,6 +194,15 @@ export interface ForStatement {
   variable: string;
   iterable: Expression;
   body: BlockStatement;
+}
+
+export interface ForOfStatement {
+  type: 'forOf';  // Distinguish from 'for' (range-based)
+  variable: string;
+  variableType?: string;  // Phase 2: Optional type annotation
+  iterable: Expression;
+  body: BlockStatement;
+  isLet?: boolean;  // Track if 'let' keyword was used
 }
 
 export interface WhileStatement {
