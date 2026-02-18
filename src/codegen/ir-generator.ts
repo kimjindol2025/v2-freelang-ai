@@ -13,6 +13,8 @@ export interface ASTNode {
 }
 
 export class IRGenerator {
+  private indexVarCounter = 0;  // For generating unique index variables
+
   /**
    * AST → IR instructions
    * Example: BinaryOp('+', 1, 2) → [PUSH 1, PUSH 2, ADD, HALT]
@@ -224,6 +226,71 @@ export class IRGenerator {
 
         // 10. Pop iterator from stack
         out.push({ op: Op.POP });
+        break;
+
+      // ── For...Of Statement (Array iteration with index) ────────
+      // Phase 2: Convert for...of to index-based while loop
+      // for item of array { body }  →  let _idx = 0; while _idx < array.length { ... }
+      case 'ForOfStatement':
+      case 'forOf':
+        // 1. Generate unique index variable
+        const indexVar = `_for_idx_${this.indexVarCounter++}`;
+
+        // 2. Initialize index to 0
+        out.push({ op: Op.PUSH, arg: 0 });
+        out.push({ op: Op.STORE, arg: indexVar });
+
+        // 3. Evaluate array expression (left on stack)
+        this.traverse(node.iterable, out);
+
+        // 4. Store array in temporary variable for reuse
+        const arrayVar = `_for_array_${this.indexVarCounter}`;
+        out.push({ op: Op.STORE, arg: arrayVar });
+
+        // 5. Loop start: check if index < array.length
+        const forOfLoopStart = out.length;
+
+        // Load index
+        out.push({ op: Op.LOAD, arg: indexVar });
+
+        // Load array
+        out.push({ op: Op.LOAD, arg: arrayVar });
+
+        // Get array length (ARR_LEN)
+        out.push({ op: Op.ARR_LEN });
+
+        // Compare: index < length
+        out.push({ op: Op.LT });
+
+        // Jump if condition false (exit loop)
+        const forOfJmpNotIdx = out.length;
+        out.push({ op: Op.JMP_NOT, arg: 0 }); // placeholder
+
+        // 6. Get element: array[index]
+        out.push({ op: Op.LOAD, arg: arrayVar });
+        out.push({ op: Op.LOAD, arg: indexVar });
+        out.push({ op: Op.ARR_GET });
+
+        // Store in loop variable
+        out.push({ op: Op.STORE, arg: node.variable });
+
+        // 7. Execute loop body
+        this.traverse(node.body, out);
+
+        // 8. Increment index: index = index + 1
+        out.push({ op: Op.LOAD, arg: indexVar });
+        out.push({ op: Op.PUSH, arg: 1 });
+        out.push({ op: Op.ADD });
+        out.push({ op: Op.STORE, arg: indexVar });
+
+        // 9. Jump back to loop condition
+        out.push({ op: Op.JMP, arg: forOfLoopStart });
+
+        // 10. Patch JMP_NOT to point here (loop end)
+        out[forOfJmpNotIdx].arg = out.length;
+
+        // 11. Clean up temporary variables (optional)
+        // out.push({ op: Op.POP }); // Pop array from stack if needed
         break;
 
       // ── Default (unknown node type) ─────────────────────────

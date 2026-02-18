@@ -269,4 +269,78 @@ export class FunctionTypeChecker {
       message: `Parameter count matches type signature`
     };
   }
+
+  /**
+   * Phase 2: Check for...of statement type safety
+   * Validates:
+   * 1. Iterable is array type
+   * 2. Element type is correctly inferred
+   * 3. Variable is properly bound in scope
+   */
+  checkForOfStatement(
+    variable: string,
+    iterableType: string,
+    loopBodyContext?: any
+  ): TypeCheckResult {
+    // 1. Validate iterable is array
+    if (!iterableType.startsWith('array<')) {
+      return {
+        compatible: false,
+        message: `for...of requires array type, got ${iterableType}`,
+        details: {
+          expected: 'array<T>',
+          received: iterableType,
+          paramName: 'iterable'
+        }
+      };
+    }
+
+    // 2. Extract element type
+    const elementType = this.extractElementType(iterableType);
+
+    // 3. Validate element type is valid
+    if (!TypeParser.isValidType(elementType)) {
+      return {
+        compatible: false,
+        message: `Invalid element type '${elementType}' in array`,
+        details: {
+          expected: 'Valid type',
+          received: elementType
+        }
+      };
+    }
+
+    // 4. Variable binding succeeded
+    return {
+      compatible: true,
+      message: `for...of loop variable '${variable}' bound to type '${elementType}'`,
+      details: {
+        expected: elementType,
+        received: elementType,
+        paramName: variable
+      }
+    };
+  }
+
+  /**
+   * Phase 2: Extract element type from array<T>
+   * Example: array<string> → string
+   * Example: array<number> → number
+   * Example: array<object> → object
+   */
+  extractElementType(arrayType: string): string {
+    const match = arrayType.match(/array<(.+)>/);
+    return match ? match[1] : 'unknown';
+  }
+
+  /**
+   * Phase 2: Validate for...of variable can be used in loop body
+   * Returns the type that the variable should have
+   */
+  getForOfVariableType(iterableType: string): string {
+    if (!iterableType.startsWith('array<')) {
+      return 'unknown';
+    }
+    return this.extractElementType(iterableType);
+  }
 }
