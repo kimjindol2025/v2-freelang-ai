@@ -10,19 +10,20 @@
  * ════════════════════════════════════════════════════════════════════
  */
 
-import { Hover, MarkupKind, MarkedString } from 'vscode-languageserver';
+import { Hover, MarkupKind, MarkedString, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { LSPCompilerBridge } from './bridge/lsp-compiler-bridge';
 
 /**
- * 호버 정보 제공자
+ * 호버 정보 제공자 (Bridge 기반)
  */
 export class HoverProvider {
-  constructor() {
+  constructor(private bridge?: LSPCompilerBridge) {
     // Hover provider initialization
   }
 
   /**
-   * 호버 정보 생성
+   * 호버 정보 생성 (Bridge 활용)
    */
   provideHover(document: TextDocument, line: number, column: number): Hover | null {
     try {
@@ -30,11 +31,12 @@ export class HoverProvider {
       const word = this.getWordAt(document, line, column);
       if (!word) return null;
 
-      // 2. 컨텍스트 분석 (주변 코드)
+      // 2. Bridge를 사용하면 타입 정보 획득
+      const type = this.getTypeInfo(document, word);
+
+      // 3. 컨텍스트 분석 (주변 코드)
       const context = this.getContext(document, line, column);
 
-      // 3. 타입 정보 (기본값)
-      const type = { type: 'unknown', confidence: 0.5, sources: [] };
       if (!type || !type.type) return null;
 
       // 4. 호버 콘텐츠 생성
@@ -46,7 +48,28 @@ export class HoverProvider {
   }
 
   /**
-   * 호버 콘텐츠 빌드
+   * Bridge에서 타입 정보 획득 (또는 기본값)
+   */
+  private getTypeInfo(document: TextDocument, symbolName: string): any {
+    if (this.bridge) {
+      const typeInfo = this.bridge.getTypeInfo(symbolName, document.uri);
+      if (typeInfo) {
+        return {
+          type: typeInfo.type,
+          confidence: typeInfo.confidence,
+          source: typeInfo.source,
+          reasoning: typeInfo.reasoning,
+          sources: [typeInfo.source],
+        };
+      }
+    }
+
+    // Fallback: 기본값
+    return { type: 'unknown', confidence: 0.5, sources: [] };
+  }
+
+  /**
+   * 호버 콘텐츠 빌드 (Bridge 정보 활용)
    */
   private buildHoverContent(name: string, type: any, context: string): Hover {
     const sections: string[] = [];
@@ -57,16 +80,32 @@ export class HoverProvider {
     sections.push(this.formatType(type.type));
     sections.push('```');
 
-    // 2. 신뢰도
+    // 2. 신뢰도 (Bridge에서 제공)
     const confidence = ((type.confidence || 0) * 100).toFixed(0);
     sections.push(`\n**Confidence**: ${confidence}%`);
 
-    // 3. 추론 근거
-    if (type.sources && type.sources.length > 0) {
+    // 3. 추론 근거 (Bridge 제공 reasoning 활용)
+    if (type.reasoning && type.reasoning.length > 0) {
+      sections.push(`\n**Reasoning**:`);
+      for (const reason of type.reasoning.slice(0, 3)) {
+        sections.push(`- ${reason}`);
+      }
+    } else if (type.sources && type.sources.length > 0) {
       sections.push(`\n**Inferred from**: ${type.sources.join(', ')}`);
     }
 
-    // 4. 추가 정보 (Generic, Union 등)
+    // 4. 타입 소스 (Bridge 제공)
+    if (type.source) {
+      const sourceLabel = {
+        explicit: '명시적 타입 주석',
+        inferred: '추론된 타입',
+        context: '문맥 기반',
+        'ai-inferred': 'AI 추론',
+      }[type.source] || type.source;
+      sections.push(`\n**Source**: ${sourceLabel}`);
+    }
+
+    // 5. 추가 정보 (Generic, Union 등)
     if (type.generic) {
       sections.push(`\n**Generic**: \`${type.generic}\``);
     }
@@ -75,7 +114,7 @@ export class HoverProvider {
       sections.push(`\n**Union type**: ${type.union.join(' | ')}`);
     }
 
-    // 5. 메서드 시그니처 (함수인 경우)
+    // 6. 메서드 시그니처 (함수인 경우)
     if (type.callSignatures && type.callSignatures.length > 0) {
       sections.push('\n**Available signatures**:');
       for (const sig of type.callSignatures.slice(0, 3)) {
@@ -83,7 +122,7 @@ export class HoverProvider {
       }
     }
 
-    // 6. 예시
+    // 7. 예시
     if (context && context.length > 0) {
       sections.push(`\n**Example**: \`${context.slice(0, 50)}\``);
     }
