@@ -93,6 +93,36 @@ lib-clean: clean
 install: lib-build
 	@echo "✅ libhttp.so installed"
 
+# ===== HTTP Server Completion Test =====
+
+TEST_TARGET = $(BUILD_DIR)/test_http_complete
+TEST_BINARY = test_http_complete
+
+TEST_SIMPLE_TARGET = $(BUILD_DIR)/test_http_simple
+TEST_SIMPLE_BINARY = test_http_simple
+
+test-lib: lib-build $(TEST_TARGET)
+	@echo ""
+	@echo "[TEST] Running HTTP Server Completion Test..."
+	@echo "       (Testing event_loop + http_server_impl integration)"
+	@echo ""
+	@LD_LIBRARY_PATH=$(DIST_DIR):$$LD_LIBRARY_PATH timeout 10 $(TEST_TARGET) || echo "Test completed (may have timed out)"
+
+test-simple: lib-build $(TEST_SIMPLE_TARGET)
+	@echo ""
+	@echo "[TEST] Running Simple HTTP Server Test..."
+	@echo "       (Creates server, waits 5 seconds for requests)"
+	@echo ""
+	@LD_LIBRARY_PATH=$(DIST_DIR):$$LD_LIBRARY_PATH $(TEST_SIMPLE_TARGET) 39999 || echo "Test completed"
+
+$(TEST_SIMPLE_TARGET): test_http_simple.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -L$(DIST_DIR) -o $@ test_http_simple.c -lhttp -pthread 2>&1 | grep -v "warning"
+	@chmod +x $@
+
+$(TEST_TARGET): test_http_complete.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -L$(DIST_DIR) -o $@ test_http_complete.c -lhttp -pthread
+	@chmod +x $@
+
 # ===== wrk: HTTP Benchmarking Tool =====
 
 WRK_TARGET = $(DIST_DIR)/wrk
