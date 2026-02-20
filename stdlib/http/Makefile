@@ -9,10 +9,11 @@ SRC_DIR = .
 BUILD_DIR = build
 DIST_DIR = ../../dist/stdlib
 
-# Shared library targets
-SOURCES = $(SRC_DIR)/event_loop.c $(SRC_DIR)/http_server_impl.c $(SRC_DIR)/http_client.c
+# Shared library targets (v2: optimized with connection pooling)
+SOURCES = $(SRC_DIR)/event_loop.c $(SRC_DIR)/http_server_impl.c $(SRC_DIR)/http_client.c $(SRC_DIR)/http_server_optimized.c
 OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SOURCES))
 SHARED_TARGET = $(DIST_DIR)/libhttp.so
+SHARED_TARGET_V2 = $(DIST_DIR)/libhttp-v2.so
 
 # Static server targets
 STATIC_SOURCES = static_server_main.c static_file.c
