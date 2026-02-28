@@ -23,6 +23,22 @@ export class CallbackQueue {
   private queue: CallbackContext[] = [];
   private handlers: Map<string, (ctx: CallbackContext) => void> = new Map();
   private idCounter: number = 0;
+  private vmInstance: any = null;  // Phase 3.3: VM 인스턴스 저장
+
+  /**
+   * Phase 3.3: VM 인스턴스 설정
+   * (handleFFICallbacks()가 vm.executeCallback()을 호출할 수 있도록)
+   */
+  public setVMInstance(vm: any): void {
+    this.vmInstance = vm;
+  }
+
+  /**
+   * VM 인스턴스 조회
+   */
+  public getVMInstance(): any {
+    return this.vmInstance;
+  }
 
   /**
    * 콜백 등록
@@ -106,56 +122,111 @@ export class CallbackQueue {
 export const globalCallbackQueue = new CallbackQueue();
 
 /**
+ * Phase 3.3: 콜백 핸들러 팩토리
+ * VM 인스턴스를 참조하는 핸들러를 동적으로 생성
+ */
+function createCallbackHandler(
+  queue: CallbackQueue,
+  eventType: string,
+  getArgsFromContext: (ctx: CallbackContext) => any[]
+): (ctx: CallbackContext) => void {
+  return (ctx: CallbackContext) => {
+    const vm = queue.getVMInstance();
+
+    // 디버그 로그
+    const eventName = ctx.functionName.split('_').slice(-1)[0];
+    console.log(`📌 Callback: ${eventType} → ${ctx.functionName}`);
+
+    // VM이 없으면 경고
+    if (!vm) {
+      console.warn(`⚠️  VM not initialized. Callback ${ctx.functionName} dropped.`);
+      return;
+    }
+
+    // VM에 콜백 실행 메서드가 없으면 경고
+    if (!vm.executeCallback || typeof vm.executeCallback !== 'function') {
+      console.warn(`⚠️  VM does not have executeCallback method.`);
+      return;
+    }
+
+    // FreeLang 콜백 함수 실행
+    try {
+      const args = getArgsFromContext(ctx);
+      const result = vm.executeCallback(ctx.functionName, args);
+      console.log(`✓ Callback executed: ${ctx.functionName}`);
+    } catch (error) {
+      console.error(`❌ Error executing callback ${ctx.functionName}:`, error);
+    }
+  };
+}
+
+/**
  * 콜백 브릿지 초기화
  * (이 함수는 FreeLang VM 시작 시 호출)
+ * Phase 3.3: VM 인스턴스를 받아서 핸들러에서 vm.executeCallback() 호출
  */
-export function initializeCallbackBridge(): void {
+export function initializeCallbackBridge(vmInstance?: any): void {
   console.log('🌉 Initializing FFI Callback Bridge...\n');
 
+  // VM 인스턴스 설정
+  if (vmInstance) {
+    globalCallbackQueue.setVMInstance(vmInstance);
+    console.log('✓ VM instance attached to callback bridge');
+  }
+
   // Stream 콜백
-  globalCallbackQueue.registerHandler('stream:data', (ctx) => {
-    console.log(`📨 Stream data received: ${ctx.data}`);
-    // FreeLang 콜백 실행
-    // vm.executeCallback(ctx.functionName, [ctx.data]);
-  });
+  globalCallbackQueue.registerHandler(
+    'stream:data',
+    createCallbackHandler(globalCallbackQueue, 'stream:data', (ctx) => [
+      ctx.data
+    ])
+  );
 
   // WebSocket 콜백
-  globalCallbackQueue.registerHandler('ws:message', (ctx) => {
-    console.log(`💬 WebSocket message: ${ctx.data}`);
-    // vm.executeCallback(ctx.functionName, [ctx.data]);
-  });
+  globalCallbackQueue.registerHandler(
+    'ws:message',
+    createCallbackHandler(globalCallbackQueue, 'ws:message', (ctx) => [
+      ctx.data
+    ])
+  );
 
-  globalCallbackQueue.registerHandler('ws:open', (ctx) => {
-    console.log(`🔓 WebSocket opened`);
-    // vm.executeCallback(ctx.functionName, []);
-  });
+  globalCallbackQueue.registerHandler(
+    'ws:open',
+    createCallbackHandler(globalCallbackQueue, 'ws:open', (ctx) => [])
+  );
 
-  globalCallbackQueue.registerHandler('ws:close', (ctx) => {
-    console.log(`🔒 WebSocket closed`);
-    // vm.executeCallback(ctx.functionName, []);
-  });
+  globalCallbackQueue.registerHandler(
+    'ws:close',
+    createCallbackHandler(globalCallbackQueue, 'ws:close', (ctx) => [])
+  );
 
-  globalCallbackQueue.registerHandler('ws:error', (ctx) => {
-    console.error(`❌ WebSocket error: ${ctx.data}`);
-    // vm.executeCallback(ctx.functionName, [ctx.data]);
-  });
+  globalCallbackQueue.registerHandler(
+    'ws:error',
+    createCallbackHandler(globalCallbackQueue, 'ws:error', (ctx) => [
+      ctx.data
+    ])
+  );
 
   // HTTP/2 콜백
-  globalCallbackQueue.registerHandler('http2:data', (ctx) => {
-    console.log(`📦 HTTP/2 data received: ${ctx.data}`);
-    // vm.executeCallback(ctx.functionName, [ctx.data]);
-  });
+  globalCallbackQueue.registerHandler(
+    'http2:data',
+    createCallbackHandler(globalCallbackQueue, 'http2:data', (ctx) => [
+      ctx.data
+    ])
+  );
 
-  globalCallbackQueue.registerHandler('http2:frame', (ctx) => {
-    console.log(`📋 HTTP/2 frame received`);
-    // vm.executeCallback(ctx.functionName, [ctx.data]);
-  });
+  globalCallbackQueue.registerHandler(
+    'http2:frame',
+    createCallbackHandler(globalCallbackQueue, 'http2:frame', (ctx) => [
+      ctx.data
+    ])
+  );
 
   // Timer 콜백
-  globalCallbackQueue.registerHandler('timer:tick', (ctx) => {
-    // console.log(`⏱️  Timer tick`);
-    // vm.executeCallback(ctx.functionName, []);
-  });
+  globalCallbackQueue.registerHandler(
+    'timer:tick',
+    createCallbackHandler(globalCallbackQueue, 'timer:tick', (ctx) => [])
+  );
 
   console.log('✅ Callback Bridge initialized\n');
 }

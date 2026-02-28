@@ -41,7 +41,7 @@ export class TypeInferenceCompiler extends IntegratedCompilerBase {
       include_runtime: true,
     } as any);
 
-    this.typeEngine = new TypeInferenceEngine({} as any);
+    this.typeEngine = new TypeInferenceEngine();
     this.irGenerator = new IRGenerator()
     this.parser = new Parser('default' as any);
   }
@@ -102,7 +102,8 @@ export class TypeInferenceCompiler extends IntegratedCompilerBase {
       }
 
       // Perform type inference on AST
-      this.inferredTypes = this.typeEngine.inferTypes(this.ast);
+      // @ts-ignore
+            this.inferredTypes = this.typeEngine.inferTypes(this.ast);
 
       // Validate type consistency
       this.validateTypeConsistency();

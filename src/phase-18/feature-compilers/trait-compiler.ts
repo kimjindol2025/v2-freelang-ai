@@ -240,7 +240,7 @@ export class TraitCompiler extends IntegratedCompilerBase {
         return {
           type: 'TraitImplementation',
           trait: match[1],
-          type: match[2],
+          target: match[2],
           methods: [],
         };
       }

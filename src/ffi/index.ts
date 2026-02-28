@@ -32,6 +32,13 @@ export { CFunctionCaller, cFunctionCaller } from './c-function-caller';
 // Loader
 export { FFILoader, ffiLoader, setupFFI, handleFFICallbacks } from './loader';
 
+// VM Integration (Phase 3.3: 콜백 메커니즘)
+export {
+  FFISupportedVMLoop,
+  runVMWithFFI,
+  runVMWithAsyncFFI
+} from './vm-integration';
+
 /**
  * FFI 통합 초기화
  * FreeLang VM 시작 시 호출해야 함

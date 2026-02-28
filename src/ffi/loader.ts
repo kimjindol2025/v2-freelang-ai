@@ -38,9 +38,9 @@ export class FFILoader {
         console.warn('⚠️  Some FFI modules failed to load');
       }
 
-      // 2. 콜백 브릿지 초기화
+      // 2. 콜백 브릿지 초기화 (Phase 3.3: VM 인스턴스 전달)
       console.log('\n2️⃣  Initializing Callback Bridge...');
-      initializeCallbackBridge();
+      initializeCallbackBridge(vmInstance);
 
       // 3. FFI 함수를 VM 글로벌 네임스페이스에 등록
       console.log('\n3️⃣  Registering FFI functions in VM...');
