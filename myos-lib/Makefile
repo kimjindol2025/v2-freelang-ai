@@ -18,7 +18,7 @@ all: build test
 dirs:
 	@mkdir -p $(BUILD_DIR) $(BIN_DIR)
 
-build: dirs $(BIN_DIR)/test_memory $(BIN_DIR)/test_string $(BIN_DIR)/test_array $(BIN_DIR)/test_hashmap
+build: dirs $(BIN_DIR)/test_memory $(BIN_DIR)/test_string $(BIN_DIR)/test_array $(BIN_DIR)/test_hashmap $(BIN_DIR)/test_io
 
 $(BUILD_DIR)/syscall.o: $(ARCH_DIR)/syscall.c
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -c $< -o $@
@@ -50,6 +50,12 @@ $(BUILD_DIR)/test_array.o: $(TEST_DIR)/test_array.c
 $(BUILD_DIR)/test_hashmap.o: $(TEST_DIR)/test_hashmap.c
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -c $< -o $@
 
+$(BUILD_DIR)/io.o: $(SRC_DIR)/io.c
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -c $< -o $@
+
+$(BUILD_DIR)/test_io.o: $(TEST_DIR)/test_io.c
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -c $< -o $@
+
 $(BIN_DIR)/test_memory: $(BUILD_DIR)/syscall.o $(BUILD_DIR)/memory.o $(BUILD_DIR)/test_memory.o
 	$(CC) $(LDFLAGS) -o $@ $^
 
@@ -60,6 +66,9 @@ $(BIN_DIR)/test_array: $(BUILD_DIR)/syscall.o $(BUILD_DIR)/memory.o $(BUILD_DIR)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 $(BIN_DIR)/test_hashmap: $(BUILD_DIR)/syscall.o $(BUILD_DIR)/memory.o $(BUILD_DIR)/string.o $(BUILD_DIR)/hash.o $(BUILD_DIR)/hashmap.o $(BUILD_DIR)/test_hashmap.o
+	$(CC) $(LDFLAGS) -o $@ $^
+
+$(BIN_DIR)/test_io: $(BUILD_DIR)/syscall.o $(BUILD_DIR)/io.o $(BUILD_DIR)/test_io.o
 	$(CC) $(LDFLAGS) -o $@ $^
 
 test: $(BIN_DIR)/test_memory $(BIN_DIR)/test_string $(BIN_DIR)/test_array $(BIN_DIR)/test_hashmap
