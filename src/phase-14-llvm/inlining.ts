@@ -148,17 +148,16 @@ export function runInlining(
     }
 
     // 함수 정보 추출
-    let codeSize = 0;
-    let isRecursive = false;
-    let calleeInstrs: Inst[] = [];
+    const funcName = callInstr.arg as string;
+    const func = funcs.get(funcName);
 
-    // 함수 맵에서 찾기 (간단한 버전)
-    for (const [name, func] of funcs.entries()) {
-      codeSize = estimateCodeSize(funcs, name);
-      isRecursive = func.isRecursive || false;
-      calleeInstrs = func.instrs;
-      break; // 첫 함수 (단순화)
+    if (!func) {
+      continue; // 함수를 찾을 수 없으면 건너뛰기
     }
+
+    const codeSize = estimateCodeSize(funcs, funcName);
+    const isRecursive = func.isRecursive || false;
+    const calleeInstrs = func.instrs;
 
     // 인라인 여부 판별
     const callFreq = estimateCallFrequency(call.loopDepth, call.inLoop);

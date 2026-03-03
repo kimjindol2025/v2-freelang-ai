@@ -746,9 +746,8 @@ export class Compiler {
   }
 
   private compileAssign(expr: Expr & { kind: "assign" }): void {
-    this.compileExpr(expr.value);
-
     if (expr.target.kind === "ident") {
+      this.compileExpr(expr.value);
       const slot = this.resolveLocal(expr.target.name);
       if (slot !== -1) {
         this.chunk.emit(Op.STORE_LOCAL, expr.line);
@@ -758,9 +757,17 @@ export class Compiler {
         this.chunk.emitI32(this.chunk.addConstant(expr.target.name), expr.line);
       }
     } else if (expr.target.kind === "index") {
-      this.compileExpr(expr.target.object);
-      this.compileExpr(expr.target.index);
+      // stack order for ARRAY_SET: [... arr, idx, val]
+      this.compileExpr(expr.target.object);  // push array
+      this.compileExpr(expr.target.index);   // push index
+      this.compileExpr(expr.value);          // push value
       this.chunk.emit(Op.ARRAY_SET, expr.line);
+    } else if (expr.target.kind === "field_access") {
+      // stack order for STRUCT_SET: [... obj, val]
+      this.compileExpr(expr.target.object);  // push struct
+      this.compileExpr(expr.value);          // push value
+      this.chunk.emit(Op.STRUCT_SET, expr.line);
+      this.chunk.emitI32(this.chunk.addConstant(expr.target.field), expr.line);
     }
   }
 

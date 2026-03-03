@@ -11,6 +11,7 @@ import { FunctionRegistry } from '../parser/function-registry';
 import { FunctionParser } from './parser';
 import { Inst, VMResult } from '../types';
 import { parseFreeLangExpression } from '../parser/pratt';
+import { optimizeIR } from '../phase-14-llvm/llvm-optimizer';
 
 export interface RunResult {
   success: boolean;
@@ -139,7 +140,10 @@ export class ProgramRunner {
         const ast = parseProgram(statementsOnly) as any;
 
         // 4. Generate IR
-        const ir = this.gen.generateIR(ast);
+        const rawIR = this.gen.generateIR(ast);
+
+        // 4.5. Optimize IR (Phase-14-llvm pipeline)
+        const { optimized: ir, stats: optStats } = optimizeIR(rawIR);
 
         // 5. Execute on VM
         const result = this.vm.run(ir);
