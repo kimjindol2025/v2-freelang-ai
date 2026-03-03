@@ -144,6 +144,17 @@ export class Parser {
   private parseFnDecl(): Stmt {
     const kw = this.advance(); // fn
     const name = this.expectIdent("function name");
+
+    // Generic 파라미터 (fn<T, U>(...) ...) — 2-C: Generic 추가
+    let typeParams: string[] | undefined;
+    if (this.match(TokenType.LT)) {
+      typeParams = [];
+      do {
+        typeParams.push(this.expectIdent("type parameter"));
+      } while (this.match(TokenType.COMMA));
+      this.expect(TokenType.GT, "expected '>' after type parameters");
+    }
+
     this.expect(TokenType.LPAREN, "expected '(' after function name");
 
     const params: Param[] = [];
@@ -165,7 +176,7 @@ export class Parser {
     this.expect(TokenType.LBRACE, "expected '{' for function body");
     const body = this.parseBlock();
 
-    return { kind: "fn_decl", name, params, returnType, body, line: kw.line, col: kw.col };
+    return { kind: "fn_decl", name, params, returnType, body, typeParams, line: kw.line, col: kw.col };
   }
 
   // struct 선언
@@ -789,7 +800,8 @@ export class Parser {
   // 타입 파싱
   // ============================================================
 
-  private parseType(): TypeAnnotation {
+  // 단일 타입 파싱 (Union 없음) — 2-C: parseSingleType 추가
+  private parseSingleType(): TypeAnnotation {
     const tok = this.peek();
 
     // fn(T1, T2) -> R 함수 타입
@@ -870,6 +882,22 @@ export class Parser {
     this.error(`expected type, got ${tok.lexeme}`, tok);
     this.advance();
     return { kind: "i32" }; // fallback
+  }
+
+  // Union 타입 지원 — 2-C: Union 파싱 추가
+  private parseType(): TypeAnnotation {
+    const base = this.parseSingleType();
+
+    // Union 체인: i32 | string | bool
+    if (this.check(TokenType.PIPE)) {
+      const types = [base];
+      while (this.match(TokenType.PIPE)) {
+        types.push(this.parseSingleType());
+      }
+      return { kind: "union", types };
+    }
+
+    return base;
   }
 
   // ============================================================

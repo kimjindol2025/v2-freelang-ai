@@ -61,6 +61,7 @@ export enum TokenType {
   GTEQ = "GTEQ",          // >=
   AND = "AND",             // &&
   OR = "OR",               // ||
+  PIPE = "PIPE",           // | (Union 타입용)
   NOT = "NOT",             // !
   QUESTION = "QUESTION",   // ?
   ARROW = "ARROW",         // =>
@@ -268,9 +269,14 @@ export class Lexer {
       this.tokens.push({ type: TokenType.AND, lexeme: "&&", line: startLine, col: startCol });
       return;
     }
-    if (ch === "|" && this.peekNext() === "|") {
-      this.advance(); this.advance();
-      this.tokens.push({ type: TokenType.OR, lexeme: "||", line: startLine, col: startCol });
+    if (ch === "|") {
+      if (this.peekNext() === "|") {
+        this.advance(); this.advance();
+        this.tokens.push({ type: TokenType.OR, lexeme: "||", line: startLine, col: startCol });
+      } else {
+        this.advance();
+        this.tokens.push({ type: TokenType.PIPE, lexeme: "|", line: startLine, col: startCol });
+      }
       return;
     }
 

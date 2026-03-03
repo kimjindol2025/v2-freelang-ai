@@ -21,6 +21,8 @@ export type Type =
   | { kind: "result"; ok: Type; err: Type }
   | { kind: "struct"; fields: Map<string, Type> }
   | { kind: "fn"; params: Type[]; returnType: Type }
+  | { kind: "union"; types: Type[] }           // 2-D: Union 타입 추가
+  | { kind: "type_param"; name: string }      // 2-D: Generic 파라미터 추가
   | { kind: "unknown" };
 
 // ============================================================
@@ -52,6 +54,7 @@ type VarInfo = {
 type FnInfo = {
   params: { name: string; type: Type }[];
   returnType: Type;
+  typeParams?: string[];  // 2-D: Generic 파라미터 추가
 };
 
 // ============================================================
@@ -111,39 +114,70 @@ function isCopyType(t: Type): boolean {
 function typesEqual(a: Type, b: Type): boolean {
   // any 타입은 모든 타입과 같음
   if (a.kind === "any" || b.kind === "any") return true;
+
+  // 2-D: Union 타입 비교 — b가 union이면, a가 b의 멤버인지 확인
+  if ((b as any).kind === "union") {
+    const bUnion = b as any;
+    return bUnion.types.some((bt: Type) => typesEqual(a, bt));
+  }
+
   if (a.kind !== b.kind) return false;
 
-  switch (a.kind) {
-    case "i32": case "i64": case "f64": case "bool": case "string": case "void": case "unknown":
-      return true;
-    case "array":
-      return typesEqual(a.element, (b as any).element);
-    case "channel":
-      return typesEqual(a.element, (b as any).element);
-    case "option":
-      return typesEqual(a.element, (b as any).element);
-    case "result":
-      return typesEqual(a.ok, (b as any).ok) && typesEqual(a.err, (b as any).err);
-    case "struct": {
-      const bStruct = b as { kind: "struct"; fields: Map<string, Type> };
-      if (a.fields.size !== bStruct.fields.size) return false;
-      for (const [k, v] of a.fields) {
-        const bv = bStruct.fields.get(k);
-        if (!bv || !typesEqual(v, bv)) return false;
-      }
-      return true;
-    }
-    case "fn": {
-      const bFn = b as { kind: "fn"; params: Type[]; returnType: Type };
-      if (a.params.length !== bFn.params.length) return false;
-      for (let i = 0; i < a.params.length; i++) {
-        if (!typesEqual(a.params[i], bFn.params[i])) return false;
-      }
-      return typesEqual(a.returnType, bFn.returnType);
-    }
-    default:
-      return false;
+  // 2-D: 각 타입별 비교 (if-else 사용)
+  if (a.kind === "i32" || a.kind === "i64" || a.kind === "f64" || a.kind === "bool" || a.kind === "string" || a.kind === "void" || a.kind === "unknown") {
+    return true;
   }
+
+  if (a.kind === "array") {
+    return typesEqual((a as any).element, (b as any).element);
+  }
+
+  if (a.kind === "channel") {
+    return typesEqual((a as any).element, (b as any).element);
+  }
+
+  if (a.kind === "option") {
+    return typesEqual((a as any).element, (b as any).element);
+  }
+
+  if (a.kind === "result") {
+    return typesEqual((a as any).ok, (b as any).ok) && typesEqual((a as any).err, (b as any).err);
+  }
+
+  if (a.kind === "struct") {
+    const aStruct = a as any;
+    const bStruct = b as any;
+    if (aStruct.fields.size !== bStruct.fields.size) return false;
+    for (const [k, v] of aStruct.fields) {
+      const bv = bStruct.fields.get(k);
+      if (!bv || !typesEqual(v, bv)) return false;
+    }
+    return true;
+  }
+
+  if (a.kind === "fn") {
+    const aFn = a as any;
+    const bFn = b as any;
+    if (aFn.params.length !== bFn.params.length) return false;
+    for (let i = 0; i < aFn.params.length; i++) {
+      if (!typesEqual(aFn.params[i], bFn.params[i])) return false;
+    }
+    return typesEqual(aFn.returnType, bFn.returnType);
+  }
+
+  if ((a as any).kind === "union") {
+    // 2-D: 두 union 모두인 경우 — a의 모든 멤버가 b에 포함되어야 함
+    const aUnion = a as any;
+    const bUnion = b as any;
+    return aUnion.types.every((at: Type) => bUnion.types.some((bt: Type) => typesEqual(at, bt)));
+  }
+
+  if ((a as any).kind === "type_param") {
+    // 2-D: Generic 파라미터는 이름으로 비교
+    return (a as any).name === (b as any).name;
+  }
+
+  return false;
 }
 
 function typeToString(t: Type): string {
@@ -162,6 +196,13 @@ function typeToString(t: Type): string {
       const paramStr = t.params.map(typeToString).join(", ");
       return `fn(${paramStr}) -> ${typeToString(t.returnType)}`;
     }
+    // 2-D: Union + type_param 출력 추가
+    case "union": {
+      const unionT = t as { kind: "union"; types: Type[] };
+      return unionT.types.map(typeToString).join(" | ");
+    }
+    case "type_param":
+      return (t as any).name;
     case "unknown": return "unknown";
   }
 }
@@ -187,6 +228,16 @@ function annotationToType(a: TypeAnnotation, structDefs: Map<string, Type> = new
       const params = a.params.map(p => annotationToType(p, structDefs));
       const returnType = annotationToType(a.returnType, structDefs);
       return { kind: "fn", params, returnType };
+    }
+    // 2-D: Union + generic_ref 처리 추가
+    case "union": {
+      const annUnion = a as { kind: "union"; types: TypeAnnotation[] };
+      return { kind: "union", types: annUnion.types.map(t => annotationToType(t, structDefs)) };
+    }
+    case "generic_ref": {
+      // T, Option<T> 같은 generic 참조 → type_param으로 취급
+      const annGen = a as { kind: "generic_ref"; name: string; typeArgs?: TypeAnnotation[] };
+      return { kind: "type_param", name: annGen.name };
     }
   }
 }
@@ -307,7 +358,8 @@ export class TypeChecker {
     let declType: Type;
     if (stmt.type) {
       declType = annotationToType(stmt.type, this.structs);
-      if (!typesEqual(declType, initType) && initType.kind !== "unknown") {
+      // 2-D: Union 호환성 체크 — initType이 declType의 멤버인지 확인
+      if (!typesEqual(initType, declType) && initType.kind !== "unknown") {
         this.error(
           `type mismatch: declared ${typeToString(declType)}, got ${typeToString(initType)}`,
           stmt.line, stmt.col,
@@ -559,7 +611,8 @@ export class TypeChecker {
 
     if (stmt.value) {
       const valType = this.checkExpr(stmt.value);
-      if (!typesEqual(this.currentReturnType, valType) && valType.kind !== "unknown") {
+      // 2-D: Union 호환성 체크 — valType이 currentReturnType의 멤버인지 확인
+      if (!typesEqual(valType, this.currentReturnType) && valType.kind !== "unknown") {
         this.error(
           `return type mismatch: expected ${typeToString(this.currentReturnType)}, got ${typeToString(valType)}`,
           stmt.line, stmt.col,
@@ -869,7 +922,8 @@ export class TypeChecker {
         this.error(`cannot assign to immutable variable '${expr.target.name}'`, expr.line, expr.col);
         return { kind: "void" };
       }
-      if (!typesEqual(info.type, valType) && valType.kind !== "unknown") {
+      // 2-D: Union 호환성 체크 — valType이 info.type의 멤버인지 확인
+      if (!typesEqual(valType, info.type) && valType.kind !== "unknown") {
         this.error(
           `assignment type mismatch: ${typeToString(info.type)} = ${typeToString(valType)}`,
           expr.line, expr.col,

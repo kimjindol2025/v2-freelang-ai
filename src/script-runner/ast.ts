@@ -17,7 +17,9 @@ export type TypeAnnotation =
   | { kind: "option"; element: TypeAnnotation }
   | { kind: "result"; ok: TypeAnnotation; err: TypeAnnotation }
   | { kind: "struct_ref"; name: string }
-  | { kind: "fn"; params: TypeAnnotation[]; returnType: TypeAnnotation };
+  | { kind: "fn"; params: TypeAnnotation[]; returnType: TypeAnnotation }
+  | { kind: "union"; types: TypeAnnotation[] }
+  | { kind: "generic_ref"; name: string; typeArgs?: TypeAnnotation[] };
 
 // ============================================================
 // 패턴 (Match Patterns) — SPEC_05 Q8: 7종
@@ -82,7 +84,7 @@ export type StructField = {
 
 export type Stmt =
   | { kind: "var_decl"; name: string; mutable: boolean; type: TypeAnnotation | null; init: Expr; line: number; col: number }
-  | { kind: "fn_decl"; name: string; params: Param[]; returnType: TypeAnnotation; body: Stmt[]; line: number; col: number }
+  | { kind: "fn_decl"; name: string; params: Param[]; returnType: TypeAnnotation; body: Stmt[]; typeParams?: string[]; line: number; col: number }
   | { kind: "struct_decl"; name: string; fields: StructField[]; line: number; col: number }
   | { kind: "class_decl"; name: string; fields: StructField[]; line: number; col: number }
   | { kind: "use_decl"; module: string; alias: string; line: number; col: number }
