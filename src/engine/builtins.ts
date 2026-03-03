@@ -919,6 +919,326 @@ export const BUILTINS: Record<string, BuiltinSpec> = {
     },
   },
 
+  // ────────────────────────────────────────
+  // Phase C: JSON/인코딩/암호화 함수 (12개)
+  // ────────────────────────────────────────
+
+  // JSON 함수 (3개)
+  json_parse: {
+    name: 'json_parse',
+    params: [{ name: 's', type: 'string' }],
+    return_type: 'any',
+    c_name: 'freelang_json_parse',
+    headers: ['freelang_json.h'],
+    impl: (s: string) => {
+      try {
+        return JSON.parse(s);
+      } catch (e) {
+        throw new Error(`JSON parse error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  json_stringify: {
+    name: 'json_stringify',
+    params: [{ name: 'v', type: 'any' }],
+    return_type: 'string',
+    c_name: 'freelang_json_stringify',
+    headers: ['freelang_json.h'],
+    impl: (v: any) => JSON.stringify(v),
+  },
+
+  json_pretty: {
+    name: 'json_pretty',
+    params: [{ name: 'v', type: 'any' }],
+    return_type: 'string',
+    c_name: 'freelang_json_pretty',
+    headers: ['freelang_json.h'],
+    impl: (v: any) => JSON.stringify(v, null, 2),
+  },
+
+  // Base64/인코딩 함수 (4개)
+  base64_encode: {
+    name: 'base64_encode',
+    params: [{ name: 's', type: 'string' }],
+    return_type: 'string',
+    c_name: 'freelang_base64_encode',
+    headers: ['freelang_encoding.h'],
+    impl: (s: string) => Buffer.from(s).toString('base64'),
+  },
+
+  base64_decode: {
+    name: 'base64_decode',
+    params: [{ name: 's', type: 'string' }],
+    return_type: 'string',
+    c_name: 'freelang_base64_decode',
+    headers: ['freelang_encoding.h'],
+    impl: (s: string) => {
+      try {
+        return Buffer.from(s, 'base64').toString('utf-8');
+      } catch (e) {
+        throw new Error(`Base64 decode error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  hex_encode: {
+    name: 'hex_encode',
+    params: [{ name: 's', type: 'string' }],
+    return_type: 'string',
+    c_name: 'freelang_hex_encode',
+    headers: ['freelang_encoding.h'],
+    impl: (s: string) => Buffer.from(s).toString('hex'),
+  },
+
+  hex_decode: {
+    name: 'hex_decode',
+    params: [{ name: 's', type: 'string' }],
+    return_type: 'string',
+    c_name: 'freelang_hex_decode',
+    headers: ['freelang_encoding.h'],
+    impl: (s: string) => {
+      try {
+        return Buffer.from(s, 'hex').toString('utf-8');
+      } catch (e) {
+        throw new Error(`Hex decode error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  // 암호화 함수 (5개) - Phase D도 포함
+  crypto_sha256: {
+    name: 'crypto_sha256',
+    params: [{ name: 'data', type: 'string' }],
+    return_type: 'string',
+    c_name: 'freelang_sha256',
+    headers: ['openssl/sha.h'],
+    impl: (data: string) => {
+      try {
+        return require('crypto').createHash('sha256').update(data).digest('hex');
+      } catch (e) {
+        throw new Error(`SHA256 error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  crypto_md5: {
+    name: 'crypto_md5',
+    params: [{ name: 'data', type: 'string' }],
+    return_type: 'string',
+    c_name: 'freelang_md5',
+    headers: ['openssl/md5.h'],
+    impl: (data: string) => {
+      try {
+        return require('crypto').createHash('md5').update(data).digest('hex');
+      } catch (e) {
+        throw new Error(`MD5 error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  crypto_hmac: {
+    name: 'crypto_hmac',
+    params: [
+      { name: 'key', type: 'string' },
+      { name: 'data', type: 'string' },
+      { name: 'algo', type: 'string' },
+    ],
+    return_type: 'string',
+    c_name: 'freelang_hmac',
+    headers: ['openssl/hmac.h'],
+    impl: (key: string, data: string, algo: string = 'sha256') => {
+      try {
+        return require('crypto').createHmac(algo || 'sha256', key).update(data).digest('hex');
+      } catch (e) {
+        throw new Error(`HMAC error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  crypto_random_bytes: {
+    name: 'crypto_random_bytes',
+    params: [{ name: 'size', type: 'number' }],
+    return_type: 'string',
+    c_name: 'freelang_random_bytes',
+    headers: ['openssl/rand.h'],
+    impl: (size: number) => {
+      try {
+        return require('crypto').randomBytes(Math.floor(size)).toString('hex');
+      } catch (e) {
+        throw new Error(`Random bytes error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  crypto_uuid: {
+    name: 'crypto_uuid',
+    params: [],
+    return_type: 'string',
+    c_name: 'freelang_uuid',
+    headers: ['openssl/rand.h'],
+    impl: () => {
+      try {
+        return require('crypto').randomUUID();
+      } catch (e) {
+        throw new Error(`UUID error: ${(e as any).message}`);
+      }
+    },
+  },
+
+  // ────────────────────────────────────────
+  // Phase D: 테스트/디버깅/리플렉션 함수 (10개)
+  // ────────────────────────────────────────
+
+  // 테스트 함수 (2개)
+  assert: {
+    name: 'assert',
+    params: [
+      { name: 'condition', type: 'bool' },
+      { name: 'msg', type: 'string' },
+    ],
+    return_type: 'void',
+    c_name: 'freelang_assert',
+    headers: ['assert.h'],
+    impl: (condition: boolean, msg: string = 'Assertion failed') => {
+      if (!condition) {
+        throw new Error(`Assertion failed: ${msg}`);
+      }
+    },
+  },
+
+  expect: {
+    name: 'expect',
+    params: [
+      { name: 'actual', type: 'any' },
+      { name: 'expected', type: 'any' },
+    ],
+    return_type: 'void',
+    c_name: 'freelang_expect',
+    headers: ['assert.h'],
+    impl: (actual: any, expected: any) => {
+      if (actual !== expected) {
+        throw new Error(`Expected ${expected}, got ${actual}`);
+      }
+    },
+  },
+
+  // 디버깅 함수 (4개)
+  debug_inspect: {
+    name: 'debug_inspect',
+    params: [{ name: 'v', type: 'any' }],
+    return_type: 'string',
+    c_name: 'freelang_debug_inspect',
+    headers: ['freelang_debug.h'],
+    impl: (v: any) => JSON.stringify(v, null, 2),
+  },
+
+  debug_stack_trace: {
+    name: 'debug_stack_trace',
+    params: [],
+    return_type: 'string',
+    c_name: 'freelang_debug_stack_trace',
+    headers: ['freelang_debug.h'],
+    impl: () => {
+      try {
+        return new Error().stack || 'Stack trace unavailable';
+      } catch (e) {
+        return 'Stack trace error';
+      }
+    },
+  },
+
+  debug_time: {
+    name: 'debug_time',
+    params: [{ name: 'label', type: 'string' }],
+    return_type: 'void',
+    c_name: 'freelang_debug_time',
+    headers: ['freelang_debug.h'],
+    impl: (label: string) => {
+      try {
+        console.time(label);
+      } catch (e) {
+        // 무시
+      }
+    },
+  },
+
+  debug_time_end: {
+    name: 'debug_time_end',
+    params: [{ name: 'label', type: 'string' }],
+    return_type: 'void',
+    c_name: 'freelang_debug_time_end',
+    headers: ['freelang_debug.h'],
+    impl: (label: string) => {
+      try {
+        console.timeEnd(label);
+      } catch (e) {
+        // 무시
+      }
+    },
+  },
+
+  // 리플렉션 함수 (4개)
+  reflect_type_of: {
+    name: 'reflect_type_of',
+    params: [{ name: 'v', type: 'any' }],
+    return_type: 'string',
+    c_name: 'freelang_reflect_type_of',
+    headers: ['freelang_reflect.h'],
+    impl: (v: any) => {
+      if (v === null) return 'null';
+      if (Array.isArray(v)) return 'array';
+      if (v instanceof Map) return 'map';
+      if (v instanceof Set) return 'set';
+      return typeof v;
+    },
+  },
+
+  reflect_keys: {
+    name: 'reflect_keys',
+    params: [{ name: 'obj', type: 'any' }],
+    return_type: 'array<string>',
+    c_name: 'freelang_reflect_keys',
+    headers: ['freelang_reflect.h'],
+    impl: (obj: any) => {
+      if (obj === null || obj === undefined) return [];
+      if (obj instanceof Map) return [...obj.keys()];
+      if (obj instanceof Set) return [...obj];
+      return Object.keys(obj);
+    },
+  },
+
+  reflect_values: {
+    name: 'reflect_values',
+    params: [{ name: 'obj', type: 'any' }],
+    return_type: 'array<any>',
+    c_name: 'freelang_reflect_values',
+    headers: ['freelang_reflect.h'],
+    impl: (obj: any) => {
+      if (obj === null || obj === undefined) return [];
+      if (obj instanceof Map) return [...obj.values()];
+      if (obj instanceof Set) return [...obj];
+      return Object.values(obj);
+    },
+  },
+
+  reflect_has: {
+    name: 'reflect_has',
+    params: [
+      { name: 'obj', type: 'any' },
+      { name: 'key', type: 'string' },
+    ],
+    return_type: 'bool',
+    c_name: 'freelang_reflect_has',
+    headers: ['freelang_reflect.h'],
+    impl: (obj: any, key: string) => {
+      if (obj === null || obj === undefined) return false;
+      if (obj instanceof Map) return obj.has(key);
+      if (obj instanceof Set) return obj.has(key);
+      return key in obj;
+    },
+  },
+
   channel_recv: {
     name: 'channel_recv',
     params: [
