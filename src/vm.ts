@@ -514,7 +514,22 @@ export class VM {
 
           // Execute function body (generate IR and run)
           const gen = new IRGenerator();
-          const bodyIR = gen.generateIR(fn.body);
+
+          // Ensure fn.body is a proper BlockStatement or node
+          let bodyNode = fn.body;
+          if (!bodyNode) {
+            throw new Error('function_body_undefined:' + funcName);
+          }
+
+          // If fn.body is a BlockStatement-like object with statements array,
+          // ensure it's properly structured for IR generation
+          if (!bodyNode.type) {
+            // Assume it's a block-like object, add type if missing
+            bodyNode.type = 'block';
+          }
+
+          // Generate IR from the function body node
+          const bodyIR = gen.generateIR(bodyNode);
 
           const bodyResult = this.runProgram(bodyIR);
           const returnValue = bodyResult.value as (number | Iterator | string | undefined);
