@@ -422,7 +422,26 @@ export class Parser {
       const tok = this.peek();
 
       // 구조체 리터럴: ident { field: value, ... }
+      // BUT: 블록과 구조체 리터럴을 구분하기 위해, 다음 토큰이 statement keyword면 블록이다
       if (tok.type === TokenType.LBRACE && left.kind === "ident") {
+        // Peek ahead to see if this is a block or struct literal
+        // If the next token after LBRACE is a statement keyword, it's a block, not a struct literal
+        const nextIdx = this.pos + 1;
+        if (nextIdx < this.tokens.length) {
+          const nextTok = this.tokens[nextIdx];
+          // If the next token is a statement start keyword, this is a block, not a struct literal
+          if (nextTok.type === TokenType.VAR || nextTok.type === TokenType.LET ||
+              nextTok.type === TokenType.CONST || nextTok.type === TokenType.FN ||
+              nextTok.type === TokenType.STRUCT || nextTok.type === TokenType.IF ||
+              nextTok.type === TokenType.MATCH || nextTok.type === TokenType.FOR ||
+              nextTok.type === TokenType.WHILE || nextTok.type === TokenType.BREAK ||
+              nextTok.type === TokenType.CONTINUE || nextTok.type === TokenType.SPAWN ||
+              nextTok.type === TokenType.RETURN) {
+            // This is a block, not a struct literal
+            break;
+          }
+        }
+
         this.advance(); // {
         const fields: { name: string; value: Expr }[] = [];
         if (!this.check(TokenType.RBRACE)) {
