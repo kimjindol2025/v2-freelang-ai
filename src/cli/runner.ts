@@ -1,14 +1,19 @@
 /**
  * FreeLang CLI Runner
  * Reads program file, compiles to IR, executes on VM
+ *
+ * Phase 1: Full Lexer-Parser-IRGen-VM Pipeline Connected
+ * Replaces regex-based FunctionParser with full AST parser
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { Lexer } from '../lexer/lexer';
+import { TokenBuffer } from '../lexer/lexer';
+import { Parser } from '../parser/parser';
 import { IRGenerator } from '../codegen/ir-generator';
 import { VM } from '../vm';
 import { FunctionRegistry } from '../parser/function-registry';
-import { FunctionParser } from './parser';
 import { Inst, VMResult } from '../types';
 
 export interface RunResult {
@@ -17,66 +22,6 @@ export interface RunResult {
   error?: string;
   exitCode: number;
   executionTime: number;
-}
-
-/**
- * Simple parser to convert string to AST
- * For now, returns mock AST based on patterns
- */
-function parseProgram(source: string): Record<string, any> {
-  // For Day 6, we implement basic parsing for simple expressions
-  // Real parser would be in parser module
-
-  // Trim and check basic patterns
-  const trimmed = source.trim();
-
-  // Pattern 1: Simple number
-  if (/^\d+$/.test(trimmed)) {
-    return {
-      type: 'NumberLiteral',
-      value: parseInt(trimmed, 10)
-    };
-  }
-
-  // Pattern 2: String literal
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    return {
-      type: 'StringLiteral',
-      value: trimmed.slice(1, -1)
-    };
-  }
-
-  // Pattern 3: Simple addition (e.g., "5 + 3")
-  const addMatch = trimmed.match(/^(\d+)\s*\+\s*(\d+)$/);
-  if (addMatch) {
-    return {
-      type: 'BinaryOp',
-      operator: '+',
-      left: { type: 'NumberLiteral', value: parseInt(addMatch[1], 10) },
-      right: { type: 'NumberLiteral', value: parseInt(addMatch[2], 10) }
-    };
-  }
-
-  // Pattern 4: String concatenation
-  const strConcatMatch = trimmed.match(/^"([^"]*)"\s*\+\s*"([^"]*)"$/);
-  if (strConcatMatch) {
-    return {
-      type: 'BinaryOp',
-      operator: '+',
-      left: { type: 'StringLiteral', value: strConcatMatch[1] },
-      right: { type: 'StringLiteral', value: strConcatMatch[2] }
-    };
-  }
-
-  // Default: treat as variable identifier or error
-  if (/^[a-zA-Z_]\w*$/.test(trimmed)) {
-    return {
-      type: 'Identifier',
-      name: trimmed
-    };
-  }
-
-  throw new Error(`Unable to parse program: ${trimmed}`);
 }
 
 /**
@@ -102,34 +47,24 @@ export class ProgramRunner {
 
   /**
    * Run program from string
+   * Phase 1: Full Lexer→Parser pipeline
    */
   runString(source: string): RunResult {
     const startTime = Date.now();
 
     try {
-      // 1. Parse functions from source
-      const parsed = FunctionParser.parseProgram(source);
+      // 1. Tokenize: Lexer → TokenBuffer
+      const lexer = new Lexer(source);
+      const tokenBuffer = new TokenBuffer(lexer, { preserveNewlines: false });
 
-      // 2. Clear previous functions and register new ones
-      this.registry.clear();
-      for (const fnDef of parsed.functionDefs) {
-        // Convert parsed function to AST form for registry
-        this.registry.register({
-          type: 'FunctionDefinition',
-          name: fnDef.name,
-          params: fnDef.params,
-          body: parseProgram(fnDef.body) as any
-        });
-      }
+      // 2. Parse: TokenBuffer → Module AST (supports fn/let/if/while/for)
+      const parser = new Parser(tokenBuffer);
+      const module = parser.parseModule() as any;
 
-      // 3. Parse statements (source without functions)
-      // For now, simple implementation: parse the entire source
-      const ast = parseProgram(source) as any;
+      // 3. Generate IR: Module → IR instructions
+      const ir = this.gen.generateModuleIR(module);
 
-      // 4. Generate IR
-      const ir = this.gen.generateIR(ast);
-
-      // 5. Execute on VM
+      // 4. Execute: IR → VM results
       const result = this.vm.run(ir);
 
       const executionTime = Date.now() - startTime;
@@ -191,7 +126,15 @@ export class ProgramRunner {
    * Get IR for a program (for debugging)
    */
   getIR(source: string): Inst[] {
-    const ast = parseProgram(source) as any;
-    return this.gen.generateIR(ast);
+    try {
+      // Tokenize → Parse → Generate IR
+      const lexer = new Lexer(source);
+      const tokenBuffer = new TokenBuffer(lexer);
+      const parser = new Parser(tokenBuffer);
+      const module = parser.parseModule() as any;
+      return this.gen.generateModuleIR(module);
+    } catch (error) {
+      throw new Error(`IR Generation Error: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

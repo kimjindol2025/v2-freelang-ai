@@ -168,6 +168,41 @@ export class IRGenerator {
   }
 
   /**
+   * Phase 1: Normalize node type from parser lowercase to internal uppercase
+   *
+   * Parser generates lowercase types (e.g., 'identifier', 'binary', 'literal')
+   * But traverse() expects original case (e.g., 'Identifier', 'BinaryOp', 'NumberLiteral')
+   *
+   * This method maps between them for compatibility.
+   */
+  private normalizeNodeType(type: string): string {
+    const typeMap: Record<string, string> = {
+      'identifier': 'Identifier',
+      'binary': 'BinaryOp',
+      'call': 'CallExpression',
+      'array': 'ArrayLiteral',
+      'member': 'MemberExpression',
+      'literal': 'NumberLiteral',  // Generic, will be handled
+      'match': 'MatchExpression',
+      'lambda': 'lambda',  // Keep as-is
+      'import': 'import',
+      'export': 'export',
+      'variable': 'variable',
+      'expression': 'expression',
+      'if': 'IfStatement',
+      'for': 'ForStatement',
+      'forOf': 'ForOfStatement',
+      'while': 'WhileStatement',
+      'return': 'return',
+      'block': 'Block',
+      'function': 'FunctionStatement'
+    };
+
+    // Return mapped type or original if not found
+    return typeMap[type] || type;
+  }
+
+  /**
    * Phase 4 Step 5: 임포트된 심볼인지 확인
    *
    * @param name 심볼명
@@ -218,7 +253,10 @@ export class IRGenerator {
   private traverse(node: ASTNode, out: Inst[]): void {
     if (!node) return;
 
-    switch (node.type) {
+    // Normalize node type (lowercase to uppercase mapping)
+    const normalizedType = this.normalizeNodeType(node.type);
+
+    switch (normalizedType) {
       // ── Literals ────────────────────────────────────────────
       case 'NumberLiteral':
       case 'number':
@@ -228,6 +266,19 @@ export class IRGenerator {
       case 'StringLiteral':
       case 'string':
         out.push({ op: Op.STR_NEW, arg: node.value });
+        break;
+
+      // Generic 'literal' from parser (detect type from value)
+      case 'literal':
+        if (typeof node.value === 'number') {
+          out.push({ op: Op.PUSH, arg: node.value });
+        } else if (typeof node.value === 'string') {
+          out.push({ op: Op.STR_NEW, arg: node.value });
+        } else if (typeof node.value === 'boolean') {
+          out.push({ op: Op.PUSH, arg: node.value ? 1 : 0 });
+        } else {
+          out.push({ op: Op.PUSH, arg: node.value });
+        }
         break;
 
       case 'BoolLiteral':
@@ -525,6 +576,37 @@ export class IRGenerator {
           arg: fn.name,
           sub: funcBody
         });
+        break;
+
+      // ── Expression Statement (evaluate and discard result) ────
+      case 'expression':
+        if (node.expression) {
+          this.traverse(node.expression, out);
+        }
+        break;
+
+      // ── Variable Declaration (let) ──────────────────────────
+      case 'variable':
+        // Generate code for value expression
+        if (node.value) {
+          this.traverse(node.value, out);
+        } else {
+          // No initializer: push undefined (or 0)
+          out.push({ op: Op.PUSH, arg: 0 });
+        }
+        // Store in variable
+        out.push({ op: Op.STORE, arg: node.name });
+        break;
+
+      // ── Return Statement ────────────────────────────────────
+      case 'ReturnStatement':
+      case 'return':
+        if (node.value) {
+          this.traverse(node.value, out);
+        } else {
+          out.push({ op: Op.PUSH, arg: 0 });
+        }
+        out.push({ op: Op.RET });
         break;
 
       // ── Default (unknown node type) ─────────────────────────

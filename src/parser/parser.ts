@@ -61,7 +61,8 @@ import {
   ImportStatement,  // Phase 4 Step 2: Module System
   ImportSpecifier,  // Phase 4 Step 2: Module System
   ExportStatement,  // Phase 4 Step 2: Module System
-  FunctionStatement  // Phase 4 Step 2: Function exports
+  FunctionStatement,  // Phase 4 Step 2: Function exports
+  Module  // Phase 1: Full program parsing
 } from './ast';
 
 /**
@@ -194,6 +195,52 @@ export class Parser {
 
     // Otherwise, doesn't look like a function signature
     return false;
+  }
+
+  /**
+   * Phase 1: Parse full program as Module
+   *
+   * Supports general FreeLang programs with:
+   * - Multiple function definitions (fn ... { ... })
+   * - Variable declarations (let ...)
+   * - Control flow (if/while/for)
+   * - Import/export statements
+   * - Top-level expressions
+   *
+   * Returns Module with imports, exports, and statements
+   */
+  public parseModule(): Module {
+    const imports: ImportStatement[] = [];
+    const exports: ExportStatement[] = [];
+    const statements: Statement[] = [];
+
+    // Parse all statements until EOF
+    while (!this.check(TokenType.EOF)) {
+      try {
+        const stmt = this.parseStatement();
+
+        // Separate imports/exports from other statements
+        // Check statement type using type field
+        if (stmt.type === 'import') {
+          imports.push(stmt as ImportStatement);
+        } else if (stmt.type === 'export') {
+          exports.push(stmt as ExportStatement);
+        } else {
+          statements.push(stmt);
+        }
+      } catch (error) {
+        // On parse error, skip to next statement or EOF
+        if (this.check(TokenType.EOF)) break;
+        this.advance();
+      }
+    }
+
+    return {
+      path: 'program',
+      imports,
+      exports,
+      statements
+    };
   }
 
   /**
