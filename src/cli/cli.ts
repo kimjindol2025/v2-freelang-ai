@@ -5,11 +5,14 @@
 
 import * as path from 'path';
 import { ProgramRunner } from './runner';
+import { compileAOT } from './aot-compiler';
 
 interface CLIOptions {
   verbose?: boolean;
   showIR?: boolean;
   debug?: boolean;
+  aot?: boolean;        // Phase 5: AOT compilation
+  output?: string;      // Phase 5: Output binary path
 }
 
 export class FreeLangCLI {
@@ -33,13 +36,18 @@ export class FreeLangCLI {
 
     let file: string | undefined;
 
-    for (const arg of restArgs) {
+    for (let i = 0; i < restArgs.length; i++) {
+      const arg = restArgs[i];
       if (arg === '--verbose' || arg === '-v') {
         options.verbose = true;
       } else if (arg === '--show-ir') {
         options.showIR = true;
       } else if (arg === '--debug') {
         options.debug = true;
+      } else if (arg === '--aot') {
+        options.aot = true;
+      } else if (arg === '-o' || arg === '--output') {
+        options.output = restArgs[++i];  // Next arg is the output path
       } else if (!arg.startsWith('-')) {
         file = arg;
       }
@@ -66,11 +74,14 @@ Options:
   -v, --verbose          Show detailed output
   --show-ir              Display generated IR
   --debug                Enable debug mode
+  --aot                  Compile to binary (Phase 5)
+  -o, --output <path>    Output binary path (with --aot)
 
 Examples:
   freelang run program.free
   freelang eval "5 + 3"
   freelang ir "10 + 20" --show-ir
+  freelang run program.free --aot -o program_bin
 `);
   }
 
@@ -98,6 +109,24 @@ Examples:
           if (!file) {
             console.error('Error: run requires a file path');
             return 1;
+          }
+
+          if (options.aot) {
+            if (!options.output) {
+              console.error('Error: --aot requires -o/--output');
+              return 1;
+            }
+            const aotResult = compileAOT(file, options.output);
+            if (options.verbose) {
+              console.log(`[aot] Compiling ${path.basename(file)} to ${options.output}`);
+              console.log(`[time] ${aotResult.duration}ms`);
+            }
+            if (!aotResult.success) {
+              console.error(`Error: ${aotResult.error}`);
+              return 1;
+            }
+            console.log(`Binary compiled: ${aotResult.binaryPath}`);
+            return 0;
           }
 
           const result = this.runner.runFile(file);

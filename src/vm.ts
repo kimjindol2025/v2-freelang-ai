@@ -12,6 +12,7 @@ import { NativeFunctionRegistry, NativeFunctionConfig } from './vm/native-functi
 import { IRGenerator } from './codegen/ir-generator';
 import { registerStdlibFunctions } from './stdlib-builtins';
 import { registerTCPFunctions } from './stdlib/net/tcp-native';
+import { trackFunctionCall, isHotFunction } from './phase-jit/hotspot-detector';
 
 const MAX_CYCLES = 100_000;
 const MAX_STACK  = 10_000;
@@ -26,8 +27,8 @@ export interface TypeWarning {
 }
 
 export class VM {
-  private stack: (number | Iterator | string)[] = [];
-  private vars: Map<string, number | number[] | Iterator | string> = new Map();
+  private stack: (number | Iterator | string | number[] | object)[] = [];
+  private vars: Map<string, number | number[] | Iterator | string | object> = new Map();
   private pc = 0;
   private cycles = 0;
   private callStack: number[] = [];  // for CALL/RET
@@ -232,10 +233,9 @@ export class VM {
       case Op.LOAD: {
         const v = this.vars.get(arg as string);
         if (v === undefined) throw new Error('undef_var:' + arg);
-        if (typeof v === 'number') {
-          this.guardStack();
-          this.stack.push(v);
-        }
+        // Push any value type to stack (number, string, array, object)
+        this.guardStack();
+        this.stack.push(v);
         this.pc++;
         break;
       }
@@ -441,6 +441,8 @@ export class VM {
             this.stack.push(returnValue);
           }
           this.functionRegistry!.trackCall(funcName);
+          // Phase 4: Track function call for JIT hotspot detection
+          trackFunctionCall(funcName);
           this.pc++;
         }
         // Phase 3 FFI: Try native function (C FFI)

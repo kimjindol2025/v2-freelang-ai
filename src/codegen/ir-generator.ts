@@ -25,6 +25,7 @@ export interface ModuleLinkContext {
 
 export class IRGenerator {
   private indexVarCounter = 0;  // For generating unique index variables
+  private tempVarCounter = 0;   // For generating temporary array variables
   private moduleLinkContext?: ModuleLinkContext;  // Phase 4 Step 5: Module linking
 
   /**
@@ -430,13 +431,18 @@ export class IRGenerator {
 
       // ── Array Operations ────────────────────────────────────
       case 'ArrayLiteral':
-        out.push({ op: Op.ARR_NEW });
+      case 'array':
+        // Create array in temporary variable
+        const tmpVar = `__tmp_arr_${this.tempVarCounter++}`;
+        out.push({ op: Op.ARR_NEW, arg: tmpVar });
         if (node.elements && Array.isArray(node.elements)) {
           for (const elem of node.elements) {
             this.traverse(elem, out);
-            out.push({ op: Op.ARR_PUSH });
+            out.push({ op: Op.ARR_PUSH, arg: tmpVar });
           }
         }
+        // Load the array onto stack
+        out.push({ op: Op.LOAD, arg: tmpVar });
         break;
 
       case 'IndexAccess':
