@@ -889,6 +889,7 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
 
   // 배열: map, filter, reduce, find
   // Phase 26: Support for user-defined function callbacks
+  // Phase 7-D: Support for closures (lambda/arrow functions)
   registry.register({
     name: 'arr_map',
     module: 'array',
@@ -897,10 +898,23 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
       const fnNameOrFunc = args[1] as any;
       const vm = registry.getVM();
 
-      if (typeof fnNameOrFunc === 'string' && vm) {
+      if (!Array.isArray(arr)) return [];
+
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        return arr.map((item) => vm.callClosure(fnNameOrFunc, [item]));
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
         return arr.map((item) => vm.callUserFunction(fnNameOrFunc, [item]));
       }
-      return arr.map(fnNameOrFunc);
+      // JavaScript function (native)
+      else if (typeof fnNameOrFunc === 'function') {
+        return arr.map(fnNameOrFunc);
+      }
+
+      return [];
     }
   });
 
@@ -912,13 +926,29 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
       const fnNameOrFunc = args[1] as any;
       const vm = registry.getVM();
 
-      if (typeof fnNameOrFunc === 'string' && vm) {
+      if (!Array.isArray(arr)) return [];
+
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        return arr.filter((item) => {
+          const result = vm.callClosure(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
         return arr.filter((item) => {
           const result = vm.callUserFunction(fnNameOrFunc, [item]);
           return Boolean(result);
         });
       }
-      return arr.filter(fnNameOrFunc);
+      // JavaScript function (native)
+      else if (typeof fnNameOrFunc === 'function') {
+        return arr.filter(fnNameOrFunc);
+      }
+
+      return [];
     }
   });
 
@@ -931,10 +961,23 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
       const init = args[2];
       const vm = registry.getVM();
 
-      if (typeof fnNameOrFunc === 'string' && vm) {
+      if (!Array.isArray(arr)) return init;
+
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        return arr.reduce((acc, item) => vm.callClosure(fnNameOrFunc, [acc, item]), init);
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
         return arr.reduce((acc, item) => vm.callUserFunction(fnNameOrFunc, [acc, item]), init);
       }
-      return arr.reduce(fnNameOrFunc, init);
+      // JavaScript function (native)
+      else if (typeof fnNameOrFunc === 'function') {
+        return arr.reduce(fnNameOrFunc, init);
+      }
+
+      return init;
     }
   });
 
@@ -943,8 +986,35 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
     module: 'array',
     executor: (args) => {
       const arr = args[0] as any[];
-      const fn = args[1] as any;
-      return arr.find(fn);
+      const fnNameOrFunc = args[1] as any;
+      const vm = registry.getVM();
+
+      if (!Array.isArray(arr)) return null;
+
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        const found = arr.find((item) => {
+          const result = vm.callClosure(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+        return found !== undefined ? found : null;
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
+        const found = arr.find((item) => {
+          const result = vm.callUserFunction(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+        return found !== undefined ? found : null;
+      }
+      // JavaScript function (native)
+      else if (typeof fnNameOrFunc === 'function') {
+        const found = arr.find(fnNameOrFunc);
+        return found !== undefined ? found : null;
+      }
+
+      return null;
     }
   });
 
@@ -971,7 +1041,18 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
       const fnNameOrFunc = args[1] as any;
       const vm = registry.getVM();
 
-      if (typeof fnNameOrFunc === 'string' && vm) {
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        try {
+          return arr.map((item) => vm.callClosure(fnNameOrFunc, [item]));
+        } catch (e) {
+          console.error('__method_map error:', e instanceof Error ? e.message : String(e));
+          return arr;
+        }
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
         try {
           const result = arr.map((item) => vm.callUserFunction(fnNameOrFunc, [item]));
           return result;
@@ -997,12 +1078,22 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
       const fnNameOrFunc = args[1] as any;
       const vm = registry.getVM();
 
-      if (typeof fnNameOrFunc === 'string' && vm) {
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        return arr.filter((item) => {
+          const result = vm.callClosure(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
         return arr.filter((item) => {
           const result = vm.callUserFunction(fnNameOrFunc, [item]);
           return Boolean(result);
         });
       }
+      // JavaScript function
       return arr.filter(fnNameOrFunc);
     }
   });
@@ -1015,13 +1106,26 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
       const fnNameOrFunc = args[1] as any;
       const vm = registry.getVM();
 
-      if (typeof fnNameOrFunc === 'string' && vm) {
-        return arr.find((item) => {
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        const found = arr.find((item) => {
+          const result = vm.callClosure(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+        return found !== undefined ? found : null;
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
+        const found = arr.find((item) => {
           const result = vm.callUserFunction(fnNameOrFunc, [item]);
           return Boolean(result);
         });
+        return found !== undefined ? found : null;
       }
-      return arr.find(fnNameOrFunc);
+      // JavaScript function
+      const found = arr.find(fnNameOrFunc);
+      return found !== undefined ? found : null;
     }
   });
 
@@ -1034,9 +1138,16 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
       const init = args[2];
       const vm = registry.getVM();
 
-      if (typeof fnNameOrFunc === 'string' && vm) {
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        return arr.reduce((acc, item) => vm.callClosure(fnNameOrFunc, [acc, item]), init);
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
         return arr.reduce((acc, item) => vm.callUserFunction(fnNameOrFunc, [acc, item]), init);
       }
+      // JavaScript function
       return arr.reduce(fnNameOrFunc, init);
     }
   });
@@ -1229,13 +1340,69 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
   registry.register({
     name: 'arr_some',
     module: 'array',
-    executor: (args) => (args[0] as any[]).some(args[1] as any)
+    executor: (args) => {
+      const arr = args[0] as any[];
+      const fnNameOrFunc = args[1] as any;
+      const vm = registry.getVM();
+
+      if (!Array.isArray(arr)) return false;
+
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        return arr.some((item) => {
+          const result = vm.callClosure(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
+        return arr.some((item) => {
+          const result = vm.callUserFunction(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      // JavaScript function (native)
+      else if (typeof fnNameOrFunc === 'function') {
+        return arr.some(fnNameOrFunc);
+      }
+
+      return false;
+    }
   });
 
   registry.register({
     name: 'arr_every',
     module: 'array',
-    executor: (args) => (args[0] as any[]).every(args[1] as any)
+    executor: (args) => {
+      const arr = args[0] as any[];
+      const fnNameOrFunc = args[1] as any;
+      const vm = registry.getVM();
+
+      if (!Array.isArray(arr)) return true;
+
+      // Phase 7-D: Check if it's a closure (lambda object)
+      if (fnNameOrFunc && typeof fnNameOrFunc === 'object' && fnNameOrFunc.type === 'lambda') {
+        if (!vm) throw new Error('vm_not_available_for_closure_call');
+        return arr.every((item) => {
+          const result = vm.callClosure(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      // Phase 26: Check if it's a function name (string)
+      else if (typeof fnNameOrFunc === 'string' && vm) {
+        return arr.every((item) => {
+          const result = vm.callUserFunction(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      // JavaScript function (native)
+      else if (typeof fnNameOrFunc === 'function') {
+        return arr.every(fnNameOrFunc);
+      }
+
+      return true;
+    }
   });
 
   registry.register({

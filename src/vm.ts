@@ -1101,6 +1101,61 @@ export class VM {
   }
 
   /**
+   * Phase 7-D: Execute closure (lambda/anonymous function) with arguments
+   * Closures can be passed as function values to higher-order functions like map/filter/reduce
+   */
+  public callClosure(closure: any, args: any[]): any {
+    // Validate closure structure
+    if (!closure || closure.type !== 'lambda') {
+      throw new Error('invalid_closure:expected_lambda_object');
+    }
+
+    // Save current state and create new scope
+    const savedVars = this.vars;
+    this.vars = new Map(savedVars);
+
+    // If closure has captured variables, restore them
+    if (closure.capturedVars && Array.isArray(closure.capturedVars)) {
+      for (const capturedVar of closure.capturedVars) {
+        if (capturedVar.name && savedVars.has(capturedVar.name)) {
+          this.vars.set(capturedVar.name, savedVars.get(capturedVar.name));
+        }
+      }
+    }
+
+    // Bind closure parameters
+    const paramNames = closure.params || [];
+    for (let i = 0; i < paramNames.length && i < args.length; i++) {
+      const paramName = typeof paramNames[i] === 'string' ? paramNames[i] : paramNames[i].name;
+      this.vars.set(paramName, args[i]);
+    }
+
+    // Execute closure body
+    const gen = new IRGenerator();
+    const bodyNode = closure.body;
+    if (!bodyNode) {
+      throw new Error('closure_body_undefined');
+    }
+
+    const bodyIR = gen.generateIR(bodyNode);
+    let returnValue: any = undefined;
+
+    try {
+      const result = this.runProgram(bodyIR);
+      returnValue = result.value;
+    } catch (e) {
+      // Restore variables before throwing
+      this.vars = savedVars;
+      throw e;
+    }
+
+    // Restore caller's variables
+    this.vars = savedVars;
+
+    return returnValue;
+  }
+
+  /**
    * Get native function registry (for registering callbacks)
    */
   public getNativeFunctionRegistry(): NativeFunctionRegistry {
