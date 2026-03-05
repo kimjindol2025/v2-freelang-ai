@@ -816,13 +816,21 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
   });
 
   // 배열 메서드: map, filter, find, reduce
+  // Phase 26: Support for user-defined function callbacks
   registry.register({
     name: '__method_map',
     module: 'builtin_methods',
     executor: (args) => {
       const arr = args[0] as any[];
-      const fn = args[1] as any;
-      return arr.map(fn);
+      const fnNameOrFunc = args[1] as any;
+      const vm = registry.getVM();
+
+      // If fn is a string (function name), call it via VM
+      if (typeof fnNameOrFunc === 'string' && vm) {
+        return arr.map((item) => vm.callUserFunction(fnNameOrFunc, [item]));
+      }
+      // Otherwise, assume it's a JavaScript function
+      return arr.map(fnNameOrFunc);
     }
   });
 
@@ -831,8 +839,16 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
     module: 'builtin_methods',
     executor: (args) => {
       const arr = args[0] as any[];
-      const fn = args[1] as any;
-      return arr.filter(fn);
+      const fnNameOrFunc = args[1] as any;
+      const vm = registry.getVM();
+
+      if (typeof fnNameOrFunc === 'string' && vm) {
+        return arr.filter((item) => {
+          const result = vm.callUserFunction(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      return arr.filter(fnNameOrFunc);
     }
   });
 
@@ -841,8 +857,16 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
     module: 'builtin_methods',
     executor: (args) => {
       const arr = args[0] as any[];
-      const fn = args[1] as any;
-      return arr.find(fn);
+      const fnNameOrFunc = args[1] as any;
+      const vm = registry.getVM();
+
+      if (typeof fnNameOrFunc === 'string' && vm) {
+        return arr.find((item) => {
+          const result = vm.callUserFunction(fnNameOrFunc, [item]);
+          return Boolean(result);
+        });
+      }
+      return arr.find(fnNameOrFunc);
     }
   });
 
@@ -851,9 +875,14 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
     module: 'builtin_methods',
     executor: (args) => {
       const arr = args[0] as any[];
-      const fn = args[1] as any;
+      const fnNameOrFunc = args[1] as any;
       const init = args[2];
-      return arr.reduce(fn, init);
+      const vm = registry.getVM();
+
+      if (typeof fnNameOrFunc === 'string' && vm) {
+        return arr.reduce((acc, item) => vm.callUserFunction(fnNameOrFunc, [acc, item]), init);
+      }
+      return arr.reduce(fnNameOrFunc, init);
     }
   });
 

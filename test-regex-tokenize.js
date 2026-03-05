@@ -4,7 +4,7 @@
  * Test regex literal tokenization
  */
 
-const { Lexer } = require('./dist/src/lexer/lexer');
+const { Lexer } = require('./dist/lexer/lexer');
 
 // Test 1: Simple regex pattern
 const code1 = `var pattern = /[0-9]+/;`;
