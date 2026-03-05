@@ -220,7 +220,7 @@ export function registerMathExtendedFunctions(registry: NativeFunctionRegistry):
     name: 'math_mod_inverse',
     module: 'math',
     executor: (args) => {
-      const [a, m] = args;
+      let [a, m] = args;
       let [x0, x1, m0] = [0, 1, m];
       if (m === 1) return 0;
       while (a > 1) {
@@ -963,7 +963,7 @@ export function registerMathExtendedFunctions(registry: NativeFunctionRegistry):
     module: 'stat',
     executor: (args) => {
       const data = args[0];
-      const freq: { [key: any]: number } = {};
+      const freq: { [key: string | number]: number } = {};
       for (const val of data) {
         freq[val] = (freq[val] || 0) + 1;
       }
@@ -1332,7 +1332,8 @@ export function registerMathExtendedFunctions(registry: NativeFunctionRegistry):
     module: 'crypto',
     executor: (args) => {
       const [length = 32] = args;
-      return Buffer.alloc(length).fill(0).map(() => Math.floor(Math.random() * 256)).toString('hex');
+      const bytes = Array.from({ length: Math.floor(length as number) }).map(() => Math.floor(Math.random() * 256));
+      return Buffer.from(bytes).toString('hex');
     }
   });
 

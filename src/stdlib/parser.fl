@@ -28,13 +28,13 @@
  * FreeLang은 map 기반으로 동작하므로 struct 대신 map literal 사용
  *
  * type: 노드 타입 ("BinaryOp", "Call", "Identifier", "Literal" 등)
- * value: 노드 값 (연산자, 함수명, 리터럴 값 등)
+ * nodeVal: 노드 값 (연산자, 함수명, 리터럴 값 등)
  * children: 자식 노드 배열 (포인터 대신 배열 사용)
  * line: 토큰이 시작된 줄번호
  * col: 토큰이 시작된 열번호
  *
  * 사용 예시:
- *   let node = { type: "Literal", value: "42", children: [], line: 1, col: 1 }
+ *   let node = { type: "Literal", nodeVal: "42", children: [], line: 1, col: 1 }
  */
 
 /**
@@ -200,10 +200,10 @@ fn expectKind(p, kind, msg) -> map {
 /**
  * ASTNode 생성
  */
-fn makeNode(type, value, children, line, col) -> ASTNode {
+fn makeNode(type, nodeVal, children, line, col) -> ASTNode {
   return {
     type: type,
-    value: value,
+    nodeVal: nodeVal,
     children: children,
     line: line,
     col: col

@@ -1083,7 +1083,7 @@ export function registerCollectionExtendedFunctions(registry: NativeFunctionRegi
 
       if (!Array.isArray(arr)) return null;
 
-      const naturalCompare = (a, b) => {
+      const naturalCompare = (a: any, b: any) => {
         const reA = /[^0-9]+|\d+/g;
         const aA = String(a).match(reA) || [];
         const bA = String(b).match(reA) || [];
@@ -1092,10 +1092,10 @@ export function registerCollectionExtendedFunctions(registry: NativeFunctionRegi
           const aa = aA[i];
           const ba = bA[i];
 
-          const isNum = !isNaN(aa) && !isNaN(ba);
+          const aNum = parseInt(aa as string, 10);
+          const bNum = parseInt(ba as string, 10);
+          const isNum = !isNaN(aNum) && !isNaN(bNum);
           if (isNum) {
-            const aNum = parseInt(aa, 10);
-            const bNum = parseInt(ba, 10);
             if (aNum !== bNum) return aNum - bNum;
           } else if (aa !== ba) {
             return aa < ba ? -1 : 1;
@@ -1205,7 +1205,7 @@ export function registerCollectionExtendedFunctions(registry: NativeFunctionRegi
       if (!Array.isArray(arr)) return null;
 
       const n = arr.length;
-      const step = Math.floor(Math.sqrt(n));
+      let step = Math.floor(Math.sqrt(n));
       let prev = 0;
 
       while (arr[Math.min(step, n) - 1] < target) {
