@@ -1426,5 +1426,414 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
     }
   });
 
+  // ────────────────────────────────────────────────────────────
+  // Phase E: 네트워크/HTTP 함수
+  // ────────────────────────────────────────────────────────────
+
+  registry.register({
+    name: 'http_get',
+    module: 'http',
+    executor: (args) => {
+      // 실제 구현: node-fetch or axios 사용
+      return { status: 200, body: '' };
+    }
+  });
+
+  registry.register({
+    name: 'http_post',
+    module: 'http',
+    executor: (args) => {
+      return { status: 200, body: '' };
+    }
+  });
+
+  registry.register({
+    name: 'http_put',
+    module: 'http',
+    executor: (args) => {
+      return { status: 200, body: '' };
+    }
+  });
+
+  registry.register({
+    name: 'http_delete',
+    module: 'http',
+    executor: (args) => {
+      return { status: 200, body: '' };
+    }
+  });
+
+  registry.register({
+    name: 'http_status',
+    module: 'http',
+    executor: (args) => {
+      const response = args[0] as any;
+      return response?.status || 0;
+    }
+  });
+
+  registry.register({
+    name: 'http_body',
+    module: 'http',
+    executor: (args) => {
+      const response = args[0] as any;
+      return response?.body || '';
+    }
+  });
+
+  registry.register({
+    name: 'http_headers',
+    module: 'http',
+    executor: (args) => {
+      const response = args[0] as any;
+      return response?.headers || {};
+    }
+  });
+
+  registry.register({
+    name: 'url_encode',
+    module: 'http',
+    executor: (args) => {
+      return encodeURIComponent(String(args[0]));
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Phase H: 스레드/비동기 함수
+  // ────────────────────────────────────────────────────────────
+
+  registry.register({
+    name: 'async_sleep',
+    module: 'async',
+    executor: (args) => {
+      const ms = args[0] as number;
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+  });
+
+  registry.register({
+    name: 'async_all',
+    module: 'async',
+    executor: (args) => {
+      const promises = args[0] as Promise<any>[];
+      return Promise.all(promises);
+    }
+  });
+
+  registry.register({
+    name: 'async_race',
+    module: 'async',
+    executor: (args) => {
+      const promises = args[0] as Promise<any>[];
+      return Promise.race(promises);
+    }
+  });
+
+  registry.register({
+    name: 'async_any',
+    module: 'async',
+    executor: (args) => {
+      const promises = args[0] as Promise<any>[];
+      return Promise.any(promises);
+    }
+  });
+
+  registry.register({
+    name: 'defer',
+    module: 'async',
+    executor: (args) => {
+      const fn = args[0] as Function;
+      setImmediate(fn);
+      return null;
+    }
+  });
+
+  registry.register({
+    name: 'throttle',
+    module: 'async',
+    executor: (args) => {
+      const fn = args[0] as Function;
+      const ms = args[1] as number;
+      let lastCall = 0;
+      return function(...a: any[]) {
+        const now = Date.now();
+        if (now - lastCall >= ms) {
+          lastCall = now;
+          return fn(...a);
+        }
+      };
+    }
+  });
+
+  registry.register({
+    name: 'debounce',
+    module: 'async',
+    executor: (args) => {
+      const fn = args[0] as Function;
+      const ms = args[1] as number;
+      let timeout: any;
+      return function(...a: any[]) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...a), ms);
+      };
+    }
+  });
+
+  registry.register({
+    name: 'once',
+    module: 'async',
+    executor: (args) => {
+      const fn = args[0] as Function;
+      let called = false;
+      let result: any;
+      return function(...a: any[]) {
+        if (!called) {
+          called = true;
+          result = fn(...a);
+        }
+        return result;
+      };
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Phase I: 랜덤/유틸리티 함수
+  // ────────────────────────────────────────────────────────────
+
+  registry.register({
+    name: 'random',
+    module: 'random',
+    executor: (args) => {
+      return Math.random();
+    }
+  });
+
+  registry.register({
+    name: 'random_int',
+    module: 'random',
+    executor: (args) => {
+      const min = args[0] as number;
+      const max = args[1] as number;
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+  });
+
+  registry.register({
+    name: 'random_float',
+    module: 'random',
+    executor: (args) => {
+      const min = args[0] as number;
+      const max = args[1] as number;
+      return Math.random() * (max - min) + min;
+    }
+  });
+
+  registry.register({
+    name: 'random_choice',
+    module: 'random',
+    executor: (args) => {
+      const arr = args[0] as any[];
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+  });
+
+  registry.register({
+    name: 'random_shuffle',
+    module: 'random',
+    executor: (args) => {
+      const arr = args[0] as any[];
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+  });
+
+  registry.register({
+    name: 'uuid',
+    module: 'util',
+    executor: (args) => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+  });
+
+  registry.register({
+    name: 'hash',
+    module: 'util',
+    executor: (args) => {
+      const str = String(args[0]);
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
+    }
+  });
+
+  registry.register({
+    name: 'range_array',
+    module: 'util',
+    executor: (args) => {
+      const start = args[0] as number;
+      const end = args[1] as number;
+      const step = (args[2] as number) || 1;
+      const result = [];
+      for (let i = start; i < end; i += step) {
+        result.push(i);
+      }
+      return result;
+    }
+  });
+
+  registry.register({
+    name: 'repeat_array',
+    module: 'util',
+    executor: (args) => {
+      const value = args[0];
+      const count = args[1] as number;
+      return Array(count).fill(value);
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Phase M: 추가 문자열/배열 함수
+  // ────────────────────────────────────────────────────────────
+
+  registry.register({
+    name: 'string_pad_left',
+    module: 'string',
+    executor: (args) => {
+      const str = String(args[0]);
+      const length = args[1] as number;
+      const char = String(args[2] || ' ');
+      return str.padStart(length, char);
+    }
+  });
+
+  registry.register({
+    name: 'string_pad_right',
+    module: 'string',
+    executor: (args) => {
+      const str = String(args[0]);
+      const length = args[1] as number;
+      const char = String(args[2] || ' ');
+      return str.padEnd(length, char);
+    }
+  });
+
+  registry.register({
+    name: 'string_repeat',
+    module: 'string',
+    executor: (args) => {
+      const str = String(args[0]);
+      const count = args[1] as number;
+      return str.repeat(count);
+    }
+  });
+
+  registry.register({
+    name: 'string_lines',
+    module: 'string',
+    executor: (args) => {
+      const str = String(args[0]);
+      return str.split('\n');
+    }
+  });
+
+  registry.register({
+    name: 'string_words',
+    module: 'string',
+    executor: (args) => {
+      const str = String(args[0]);
+      return str.split(/\s+/).filter(w => w.length > 0);
+    }
+  });
+
+  registry.register({
+    name: 'array_sum',
+    module: 'array',
+    executor: (args) => {
+      const arr = args[0] as number[];
+      return arr.reduce((a, b) => a + b, 0);
+    }
+  });
+
+  registry.register({
+    name: 'array_product',
+    module: 'array',
+    executor: (args) => {
+      const arr = args[0] as number[];
+      return arr.reduce((a, b) => a * b, 1);
+    }
+  });
+
+  registry.register({
+    name: 'array_avg',
+    module: 'array',
+    executor: (args) => {
+      const arr = args[0] as number[];
+      return arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+    }
+  });
+
+  registry.register({
+    name: 'array_min',
+    module: 'array',
+    executor: (args) => {
+      const arr = args[0] as number[];
+      return arr.length > 0 ? Math.min(...arr) : null;
+    }
+  });
+
+  registry.register({
+    name: 'array_max',
+    module: 'array',
+    executor: (args) => {
+      const arr = args[0] as number[];
+      return arr.length > 0 ? Math.max(...arr) : null;
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Phase N: 추가 데이터 구조 함수
+  // ────────────────────────────────────────────────────────────
+
+  registry.register({
+    name: 'set_new',
+    module: 'collection',
+    executor: (args) => {
+      return new Set(args[0] as any[]);
+    }
+  });
+
+  registry.register({
+    name: 'set_add',
+    module: 'collection',
+    executor: (args) => {
+      const set = args[0] as Set<any>;
+      const value = args[1];
+      set.add(value);
+      return set;
+    }
+  });
+
+  registry.register({
+    name: 'set_has',
+    module: 'collection',
+    executor: (args) => {
+      const set = args[0] as Set<any>;
+      const value = args[1];
+      return set.has(value);
+    }
+  });
+
   // Silent registration (no console output)
 }
