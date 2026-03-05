@@ -1,8 +1,18 @@
-# FreeLang v2 - 프로그래밍 언어 런타임
+# FreeLang v2.6 - 프로그래밍 언어 런타임
 
 [![Gogs](https://img.shields.io/badge/Gogs-kim/v2--freelang--ai-blue)](https://gogs.dclub.kr/kim/v2-freelang-ai)
+[![Version](https://img.shields.io/badge/Version-2.6.0-green)](https://gogs.dclub.kr/kim/v2-freelang-ai/releases)
+[![Level](https://img.shields.io/badge/Level-3-blue)](#level-3-구현-완료)
+[![Completeness](https://img.shields.io/badge/Completeness-95%25-brightgreen)](#현재-완성도)
 
-프로덕션급 프로그래밍 언어 RuntimeSystem. 한국어 기반 자체 설계 언어로 고성능 컴파일 및 실행 환경을 제공합니다.
+**프로덕션급 프로그래밍 언어 RuntimeSystem** - Level 3 구현 완료
+
+한국어 기반 자체 설계 언어로 고성능 컴파일 및 실행 환경을 제공합니다.
+- 🚀 LLVM 기반 최적화 파이프라인 (3-pass: ADCE, Constant Folding, Inlining)
+- 🔢 Float 타입 지원 (FADD, FSUB, FMUL, FDIV opcode)
+- 🌐 TCP 네트워크 지원 (Native socket operations)
+- 🔥 JIT 기초 (Hotspot Detection & Inlining)
+- 📦 AOT 컴파일 (FreeLang → C → Binary)
 
 ## 🚀 Quick Start
 

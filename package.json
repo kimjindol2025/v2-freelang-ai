@@ -1,7 +1,7 @@
 {
   "name": "freelang",
-  "version": "1.0.0",
-  "description": "FreeLang v1.0.0 - Official Language Runtime (완성도 95%)",
+  "version": "2.6.0",
+  "description": "FreeLang v2.6.0 - Official Language Runtime (Level 3 Implementation Complete)",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "scripts": {
@@ -76,23 +76,28 @@
     "category": "language-runtime",
     "subcategory": "official-language",
     "tags": [
-      "freelang",
-      "official-v1",
+      "freelang-v2",
+      "level-3-complete",
       "production-ready",
-      "type-inference",
-      "pattern-matching",
-      "bytecode-vm"
+      "float-support",
+      "tcp-network",
+      "jit-hotspot",
+      "aot-compile",
+      "llvm-optimization"
     ],
     "entry": "dist/cli/index.js",
     "cli": true,
-    "version": "1.0.0",
+    "version": "2.6.0",
     "status": "stable",
+    "level": 3,
+    "completeness": "95%",
     "dependencies": [],
     "exports": {
       "cli": "./dist/cli/index.js",
       "engine": "./dist/engine/auto-header.js",
       "parser": "./dist/parser/parser.js",
-      "vm": "./dist/vm/vm-executor.js"
+      "vm": "./dist/vm/vm-executor.js",
+      "optimizer": "./dist/phase-14-llvm/llvm-optimizer.js"
     }
   }
 }
