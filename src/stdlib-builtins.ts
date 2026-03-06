@@ -17,6 +17,9 @@ import { registerAnalyticsFunctions } from './stdlib-analytics-functions';
 import { registerIntegrationFunctions } from './stdlib-integration-functions';
 import { registerUtilityFunctions } from './stdlib-utility-functions';
 import { registerSklearnFunctions } from './stdlib-sklearn';
+import { registerTeamCFunctions } from './stdlib-team-c-fileio-date';
+import { registerTeamBFunctions } from './stdlib-team-b-string-math';
+import { registerTeamEFunctions } from './stdlib-team-e-async-test';
 
 /**
  * stdlib 함수들을 NativeFunctionRegistry에 등록
@@ -3026,6 +3029,36 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
   // Phase 4: K-Nearest Neighbors (4개)
   // ────────────────────────────────────────────────────────────
   registerSklearnFunctions(registry);
+
+  // ────────────────────────────────────────────────────────────
+  // Phase I: Team C - File I/O & Date/Time Functions (95개)
+  // 20 libraries: fs-async, fs-buffer, fs-watcher, path-posix, path-glob,
+  // symlink, fileperm, tempfile, zip-stream, file-sync, timezone, calendar,
+  // cron, duration, business-days, date-format, date-range, age-calc,
+  // date-compare, date-utils
+  // ────────────────────────────────────────────────────────────
+  registerTeamCFunctions(registry);
+
+  // ────────────────────────────────────────────────────────────
+  // Phase J: Team B - String & Math Functions (120개)
+  // 35 libraries: text-diff, text-search, markdown, html-parser, template,
+  // printf, levenshtein, ansi-strip, word-break, complex, fraction, matrix,
+  // linear-algebra, statistics, probability, interpolation, fft, bigint,
+  // decimal, polynomial, prime, random-dist, geometry, combinatorics,
+  // csv-parser, json-query, groupby, aggregate, distinct, sort,
+  // filter-chain, stream-process, text-wrap-b, word-freq, string-utils
+  // ────────────────────────────────────────────────────────────
+  registerTeamBFunctions(registry);
+
+  // ────────────────────────────────────────────────────────────
+  // Phase K: Team E - Async/Test/Error/Concurrency Functions (150개)
+  // 30 libraries: async-pool, semaphore, channel, worker-pool, event-bus,
+  // pub-sub, rate-limiter, debounce, throttle, retry, circuit-breaker,
+  // logger, error-handler, error-monitoring, error-serializer, assertion,
+  // mock, spy, fixture, snapshot, coverage, benchmark, test-runner, stub,
+  // fake-timer, expect, promise-utils, queue-worker, task-manager, pipeline
+  // ────────────────────────────────────────────────────────────
+  registerTeamEFunctions(registry);
 
   // Silent registration (no console output)
 }
