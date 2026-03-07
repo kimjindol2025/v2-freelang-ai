@@ -24,6 +24,7 @@ import { registerTeamDFunctions } from './stdlib-team-d-http-db';
 import { registerTeamEFunctions } from './stdlib-team-e-async-test';
 import { registerTeamFFunctions } from './stdlib-team-f-security';
 import { registerNativeChartFunctions } from './stdlib-chart';
+import { registerWebForgeFunctions } from './stdlib-web-forge';
 import * as fs from 'fs';
 
 /**
@@ -3927,6 +3928,9 @@ export function registerStdlibFunctions(registry: NativeFunctionRegistry): void 
   //         chart_palette
   // ────────────────────────────────────────────────────────────
   registerNativeChartFunctions(registry);
+
+  // Native-Web-Forge: Next.js 대체 SSG/SSR 엔진
+  registerWebForgeFunctions(registry);
 
   // Silent registration (no console output)
 }

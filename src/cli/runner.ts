@@ -22,6 +22,8 @@ import { registerTCPFunctions } from '../stdlib/net/tcp-native';
 import { registerSystemExtendedFunctions } from '../stdlib-system-extended';
 import { registerFsExtendedFunctions } from '../stdlib-fs-extended';
 import { registerTeamDFunctions } from '../stdlib-team-d-http-db';
+import { registerVCSFunctions } from '../stdlib/stdlib-vcs';
+import { installGate } from '../vcs/vcs-bridge';
 
 export interface RunResult {
   success: boolean;
@@ -56,6 +58,8 @@ export class ProgramRunner {
     registerFsExtendedFunctions(this.vm.getNativeFunctionRegistry());
     // Team D: Register HTTP/DB/Cache/Redis functions (24 libraries, 120+ functions)
     registerTeamDFunctions(this.vm.getNativeFunctionRegistry());
+    // Commit-Gate: VCS stdlib (git_staged_files, vcs_lint, vcs_test 등)
+    registerVCSFunctions(this.vm.getNativeFunctionRegistry());
   }
 
   /**
@@ -63,6 +67,13 @@ export class ProgramRunner {
    */
   getRegistry(): FunctionRegistry {
     return this.registry;
+  }
+
+  /**
+   * Commit-Gate: VM의 NativeFunctionRegistry 반환 (VCS stdlib 등록용)
+   */
+  getNativeRegistry() {
+    return this.vm.getNativeFunctionRegistry();
   }
 
   /**
@@ -102,6 +113,25 @@ export class ProgramRunner {
           }
         }
       }
+
+      // ── Commit-Gate: @git_hook 어노테이션 감지 → Gate 자동 등록 ───────────
+      // @git_hook(event: .pre_commit) fn validate_before_save() { ... }
+      // 파일 실행 시 Gate를 자동 설치 (freelang gate install 없이도 동작)
+      if (module.statements && (this as any).__sourceFile) {
+        const gitHookFns = (module.statements as any[]).filter(
+          (s: any) => s?.type === 'function' &&
+            s?.annotations?.some((a: string) => a.startsWith('git_hook'))
+        );
+        if (gitHookFns.length > 0) {
+          const srcFile = (this as any).__sourceFile as string;
+          const source = (this as any).__sourceCode as string;
+          const projectRoot = path.dirname(srcFile);
+          try {
+            installGate(srcFile, source, projectRoot);
+          } catch { /* Gate 설치 실패 시 조용히 무시 (실행은 계속) */ }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       // ── Native-Core-Multiplexing: @parallel 어노테이션 감지 ──────────────
       // fn main에 @parallel이 있으면 OS 수준 fork 부트스트랩 실행
