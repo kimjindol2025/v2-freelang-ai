@@ -242,6 +242,15 @@ export interface ContinueStatement {
   type: 'continue';
 }
 
+// Secret-Link: 보안 변수 선언 (빌드 타임 주입 + 암호화 메모리)
+export interface SecretDeclaration {
+  type: 'secret';
+  name: string;                    // 보안 변수명
+  source?: 'config' | 'literal';   // 값 출처: .flconf 또는 리터럴
+  value?: Expression;              // 리터럴 값 (빌드 타임에 암호화)
+  configKey?: string;              // .flconf 키 (Config.load("KEY"))
+}
+
 // 문장 (Statement)
 export type Statement =
   | ExpressionStatement
@@ -259,7 +268,8 @@ export type Statement =
   | StructDeclaration  // Phase 16: Struct support
   | EnumDeclaration    // Phase 16: Enum support
   | BreakStatement     // Phase 16: Break support
-  | ContinueStatement; // Phase 16: Continue support
+  | ContinueStatement  // Phase 16: Continue support
+  | SecretDeclaration; // Secret-Link: 보안 변수
 
 export interface ExpressionStatement {
   type: 'expression';

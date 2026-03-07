@@ -554,9 +554,56 @@ export class IRGenerator {
             }
           }
 
-          // Convert method call to builtin function: arr_sort, str_upper, etc
-          const builtinMethodName = `__method_${methodName}`;
-          out.push({ op: Op.CALL, arg: builtinMethodName, sub: [] });
+          // Convert method call to VM instruction based on method name
+          switch (methodName) {
+            // String methods
+            case 'slice':
+            case 'substring':
+            case 'substr':
+              // obj.slice(start, end) → STR_SUB
+              out.push({ op: Op.STR_SUB });
+              break;
+            case 'length':
+              // obj.length → STR_LEN or ARR_LEN (handled in MemberExpression for properties)
+              out.push({ op: Op.STR_LEN });
+              break;
+            case 'charAt':
+            case 'charCodeAt':
+              // obj.charAt(index) → STR_AT
+              out.push({ op: Op.STR_AT });
+              break;
+            case 'concat':
+              // obj.concat(other) → STR_CONCAT
+              out.push({ op: Op.STR_CONCAT });
+              break;
+
+            // Array methods
+            case 'push':
+              out.push({ op: Op.ARR_PUSH, arg: '__return_val' });
+              break;
+            case 'reverse':
+              out.push({ op: Op.ARR_REV });
+              break;
+            case 'sort':
+              out.push({ op: Op.ARR_SORT });
+              break;
+
+            // Higher-order array methods (map, filter, reduce, find)
+            case 'map':
+            case 'filter':
+            case 'reduce':
+            case 'find':
+              // Higher-order functions: argument is a function name (string)
+              const builtinMethodName = `__method_${methodName}`;
+              out.push({ op: Op.CALL, arg: builtinMethodName, sub: [] });
+              break;
+
+            default:
+              // Unknown method: fallback to function call
+              const unknownMethodName = `__method_${methodName}`;
+              out.push({ op: Op.CALL, arg: unknownMethodName, sub: [] });
+              break;
+          }
         } else {
           // Regular function call
           if (node.arguments && Array.isArray(node.arguments)) {
@@ -749,6 +796,21 @@ export class IRGenerator {
           console.log(`[DEBUG TRAVERSE] Generating STORE for "${(node as any).name}"`);
         }
         out.push({ op: Op.STORE, arg: node.name });
+        break;
+
+      // ── Secret-Link: 보안 변수 선언 (암호화 메모리) ─────────
+      case 'secret':
+        if (node.source === 'config') {
+          // Config.load("KEY") → 빌드 타임에 .flconf에서 주입된 값 로드
+          out.push({ op: Op.LOAD_SECRET, arg: node.configKey || node.name });
+        } else if (node.value) {
+          // 리터럴 값 → 암호화 저장
+          this.traverse(node.value, out);
+        } else {
+          out.push({ op: Op.PUSH, arg: 0 });
+        }
+        // 보안 영역에 저장 (일반 STORE가 아닌 STORE_SECRET)
+        out.push({ op: Op.STORE_SECRET, arg: node.name });
         break;
 
       // ── Return Statement ────────────────────────────────────

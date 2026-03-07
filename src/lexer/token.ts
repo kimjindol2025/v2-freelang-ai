@@ -50,6 +50,9 @@ export enum TokenType {
   OUTPUT = 'OUTPUT',     // output: 타입 정의
   INTENT = 'INTENT',     // intent: 의도 정의
 
+  // Secret-Link: 보안 변수 선언 (빌드 타임 주입 / 암호화 메모리)
+  SECRET = 'SECRET',     // secret 키워드
+
   // Identifiers & Literals
   IDENT = 'IDENT',
   NUMBER = 'NUMBER',
@@ -178,7 +181,10 @@ export const KEYWORDS: Record<string, TokenType> = {
   // Phase 5 minimal .free 포맷 토큰 (3개)
   'input': TokenType.INPUT,
   'output': TokenType.OUTPUT,
-  'intent': TokenType.INTENT
+  'intent': TokenType.INTENT,
+
+  // Secret-Link: 보안 변수
+  'secret': TokenType.SECRET
 };
 
 /**

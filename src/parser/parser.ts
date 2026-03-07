@@ -70,7 +70,8 @@ import {
   StructDeclaration,  // Phase 16: Struct support
   EnumDeclaration,    // Phase 16: Enum support
   BreakStatement,     // Phase 16: Break support
-  ContinueStatement   // Phase 16: Continue support
+  ContinueStatement,  // Phase 16: Continue support
+  SecretDeclaration   // Secret-Link: 보안 변수
 } from './ast';
 
 /**
@@ -1458,6 +1459,11 @@ export class Parser {
       return this.parseThrowStatement();
     }
 
+    // Secret-Link: secret 선언
+    if (this.check(TokenType.SECRET)) {
+      return this.parseSecretDeclaration();
+    }
+
     // 블록 문
     if (this.check(TokenType.LBRACE)) {
       return this.parseBlockStatement();
@@ -2101,6 +2107,52 @@ export class Parser {
     }
 
     return params;
+  }
+
+  // ── Secret-Link: 보안 변수 선언 파싱 ──────────────────────────
+  // 문법:
+  //   secret NAME = Config.load("KEY");   // .flconf에서 로드
+  //   secret NAME = "literal_value";      // 리터럴 (빌드 타임 암호화)
+  private parseSecretDeclaration(): SecretDeclaration {
+    this.advance(); // consume 'secret'
+
+    const name = this.current().value;
+    this.expect(TokenType.IDENT, 'Expected secret variable name');
+
+    let source: 'config' | 'literal' = 'literal';
+    let value: Expression | undefined;
+    let configKey: string | undefined;
+
+    if (this.match(TokenType.ASSIGN)) {
+      // Config.load("KEY") 패턴 감지
+      if (this.check(TokenType.IDENT) && this.current().value === 'Config') {
+        this.advance(); // consume 'Config'
+        if (this.match(TokenType.DOT)) {
+          if (this.check(TokenType.IDENT) && this.current().value === 'load') {
+            this.advance(); // consume 'load'
+            this.expect(TokenType.LPAREN, 'Expected "(" after Config.load');
+            configKey = this.current().value;
+            this.expect(TokenType.STRING, 'Expected string key for Config.load');
+            this.expect(TokenType.RPAREN, 'Expected ")" after Config.load key');
+            source = 'config';
+          }
+        }
+      } else {
+        // 리터럴 값 (빌드 타임에 암호화됨)
+        value = this.parseExpression();
+        source = 'literal';
+      }
+    }
+
+    this.match(TokenType.SEMICOLON);
+
+    return {
+      type: 'secret',
+      name,
+      source,
+      value,
+      configKey
+    };
   }
 }
 
