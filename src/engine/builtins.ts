@@ -935,6 +935,86 @@ export const BUILTINS: Record<string, BuiltinSpec> = {
       return null;
     },
   },
+
+  // Native Security Policy (v1.0) - helmet-crossdomain 대체
+  register_policy: {
+    name: 'register_policy',
+    params: [
+      { name: 'path', type: 'string' },
+      { name: 'allow_access_from', type: 'array<string>' },
+      { name: 'secure', type: 'number' },
+      { name: 'max_age', type: 'number' },
+    ],
+    return_type: 'string',
+    c_name: 'security_register_policy',
+    headers: ['security_core.h'],
+    impl: (path: string, domains: string[], secure: number, maxAge: number) => {
+      // 컴파일 타임 정책 등록
+      return `policy_registered:${path}`;
+    },
+  },
+
+  get_policy: {
+    name: 'get_policy',
+    params: [{ name: 'path', type: 'string' }],
+    return_type: 'any',
+    c_name: 'security_get_policy',
+    headers: ['security_core.h'],
+    impl: (path: string) => {
+      // 런타임 정책 조회
+      return null;
+    },
+  },
+
+  get_response_frame: {
+    name: 'get_response_frame',
+    params: [{ name: 'path', type: 'string' }],
+    return_type: 'any',
+    c_name: 'security_get_response_frame',
+    headers: ['security_core.h'],
+    impl: (path: string) => {
+      // Zero-copy 응답 프레임 조회
+      return null;
+    },
+  },
+
+  validate_request: {
+    name: 'validate_request',
+    params: [
+      { name: 'path', type: 'string' },
+      { name: 'method', type: 'string' },
+      { name: 'origin', type: 'string' },
+    ],
+    return_type: 'any',
+    c_name: 'security_validate_request',
+    headers: ['security_core.h'],
+    impl: (path: string, method: string, origin?: string) => {
+      // 요청 검증 및 응답 프레임 반환
+      return { allowed: false };
+    },
+  },
+
+  list_policies: {
+    name: 'list_policies',
+    params: [],
+    return_type: 'array<any>',
+    c_name: 'security_list_policies',
+    headers: ['security_core.h'],
+    impl: () => {
+      return [];
+    },
+  },
+
+  security_stats: {
+    name: 'security_stats',
+    params: [],
+    return_type: 'any',
+    c_name: 'security_stats',
+    headers: ['security_core.h'],
+    impl: () => {
+      return { registered: 0, cached_frames: 0 };
+    },
+  },
 };
 
 // ────────────────────────────────────────
