@@ -411,6 +411,8 @@ export class OptimizationDetector {
       [Op.CATCH_START]: 'CATCH_START',
       [Op.CATCH_END]: 'CATCH_END',
       [Op.THROW]: 'THROW',
+      [Op.STORE_SECRET]: 'STORE_SECRET',
+      [Op.LOAD_SECRET]: 'LOAD_SECRET',
       [Op.DUMP]: 'DUMP',
     };
 
