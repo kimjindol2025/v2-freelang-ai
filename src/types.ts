@@ -153,6 +153,7 @@ export enum Op {
   IS_NONE   = 0xF8,   // stack: [option] → [bool]
   UNWRAP    = 0xF9,   // stack: [result/option] → [value] or throw
   UNWRAP_ERR = 0xFA,  // stack: [Err(e)] → [e] (extract error from Err)
+  PUSH_FN   = 0xFB,   // stack: [] → [closure] (push fn_lit as closure value)
 }
 
 // ── IR Instruction ──────────────────────────────────────────

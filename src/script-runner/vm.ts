@@ -22,6 +22,7 @@ export type Value =
   | { tag: "some"; val: Value }
   | { tag: "none" }
   | { tag: "chan"; id: number }
+  | { tag: "fn"; val: any }  // fn_lit AST stored as value
   | { tag: "void" };
 
 // ============================================================
@@ -560,6 +561,13 @@ export class VM {
           }
           break;
         }
+        case Op.PUSH_FN: {
+          const constIdx = this.readI32(actor);
+          const fnLit = this.chunk.constants[constIdx];
+          // fn_lit AST를 클로저 Value로 변환
+          actor.stack.push({ tag: "fn", val: fnLit });
+          break;
+        }
         case Op.IS_OK: {
           const val = actor.stack.pop()!;
           actor.stack.push({ tag: "bool", val: val.tag === "ok" });
@@ -942,8 +950,133 @@ export class VM {
         return { tag: "f64", val: now };
       }
 
+      // ============================================================
+      // Higher-Order Functions
+      // ============================================================
+      case "map": {
+        // args[0] = closure (fn), args[1] = array
+        const fn = args[0];
+        const arr = args[1];
+        if (fn.tag !== "fn" || arr.tag !== "arr") {
+          return { tag: "arr", val: [] };
+        }
+        const fnLit = fn.val;
+        const result: Value[] = [];
+        for (const item of arr.val) {
+          const val = this.callClosure(fnLit, [item]);
+          result.push(val);
+        }
+        return { tag: "arr", val: result };
+      }
+      case "filter": {
+        // args[0] = closure (fn), args[1] = array
+        const fn = args[0];
+        const arr = args[1];
+        if (fn.tag !== "fn" || arr.tag !== "arr") {
+          return { tag: "arr", val: [] };
+        }
+        const fnLit = fn.val;
+        const result: Value[] = [];
+        for (const item of arr.val) {
+          const val = this.callClosure(fnLit, [item]);
+          if (val.tag === "bool" && val.val) {
+            result.push(item);
+          }
+        }
+        return { tag: "arr", val: result };
+      }
+      case "reduce": {
+        // args[0] = closure (fn), args[1] = array, args[2] = initial
+        const fn = args[0];
+        const arr = args[1];
+        const initial = args[2];
+        if (fn.tag !== "fn" || arr.tag !== "arr") {
+          return initial;
+        }
+        const fnLit = fn.val;
+        let acc = initial;
+        for (const item of arr.val) {
+          acc = this.callClosure(fnLit, [acc, item]);
+        }
+        return acc;
+      }
+
       default:
         throw new Error(`panic: unknown builtin '${name}'`);
+    }
+  }
+
+  // ============================================================
+  // Closure Execution (for map/filter/reduce)
+  // ============================================================
+
+  private callClosure(fnLit: any, args: Value[]): Value {
+    // fnLit은 fn_lit AST 객체: { kind: "fn_lit", params: [], body: Expr, ... }
+    if (!fnLit || !fnLit.params) {
+      return { tag: "void" };
+    }
+
+    // 간단한 경우: body가 이미 컴파일된 바이너리 함수인 경우
+    if (typeof fnLit === "function") {
+      return fnLit(args);
+    }
+
+    // body 표현식 평가 (파라미터를 환경에 바인딩하고 평가)
+    // 현재는 제한된 표현식만 지원:
+    // - binary operations (x * 2)
+    // - ident (x, y)
+    // - int_lit, float_lit (42, 3.14)
+    const env = new Map<string, Value>();
+    for (let i = 0; i < fnLit.params.length && i < args.length; i++) {
+      env.set(fnLit.params[i].name || fnLit.params[i], args[i]);
+    }
+
+    return this.evalExpr(fnLit.body, env);
+  }
+
+  private evalExpr(expr: any, env: Map<string, Value>): Value {
+    if (!expr) return { tag: "void" };
+
+    switch (expr.kind) {
+      case "ident":
+        return env.get(expr.name) || { tag: "void" };
+
+      case "int_lit":
+        return { tag: "i32", val: expr.val };
+
+      case "float_lit":
+        return { tag: "f64", val: expr.val };
+
+      case "str_lit":
+        return { tag: "str", val: expr.val };
+
+      case "bool_lit":
+        return { tag: "bool", val: expr.val };
+
+      case "binary": {
+        const left = this.evalExpr(expr.left, env);
+        const right = this.evalExpr(expr.right, env);
+        const lval = (left as any).val ?? left;
+        const rval = (right as any).val ?? right;
+
+        switch (expr.op) {
+          case "+": return { tag: left.tag, val: lval + rval } as Value;
+          case "-": return { tag: left.tag, val: lval - rval } as Value;
+          case "*": return { tag: left.tag, val: lval * rval } as Value;
+          case "/": return { tag: left.tag, val: lval / rval } as Value;
+          case "%": return { tag: left.tag, val: lval % rval } as Value;
+          case "==": return { tag: "bool", val: lval === rval } as Value;
+          case "!=": return { tag: "bool", val: lval !== rval } as Value;
+          case "<": return { tag: "bool", val: lval < rval } as Value;
+          case ">": return { tag: "bool", val: lval > rval } as Value;
+          case "<=": return { tag: "bool", val: lval <= rval } as Value;
+          case ">=": return { tag: "bool", val: lval >= rval } as Value;
+          default: return { tag: "void" };
+        }
+      }
+
+      default:
+        return { tag: "void" };
     }
   }
 

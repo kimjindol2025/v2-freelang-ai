@@ -87,6 +87,7 @@ export enum Op {
   IS_NONE = 0x77,
   WRAP_NONE = 0x78,
   UNWRAP_ERR = 0x79,
+  PUSH_FN = 0x7A,
 
   // Actor/Channel
   SPAWN = 0x80,
@@ -648,6 +649,15 @@ export class Compiler {
       case "match_expr":
         this.compileMatchExpr(expr);
         break;
+
+      case "fn_lit": {
+        // fn_lit의 전체 AST를 상수로 저장
+        // 런타임에서 클로저로 변환됨
+        const fnConstIdx = this.chunk.addConstant(expr);
+        this.chunk.emit(Op.PUSH_FN, expr.line);
+        this.chunk.emitI32(fnConstIdx, expr.line);
+        break;
+      }
 
       case "array_lit":
         for (const el of expr.elements) this.compileExpr(el);
