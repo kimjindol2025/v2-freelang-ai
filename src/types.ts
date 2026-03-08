@@ -154,6 +154,9 @@ export enum Op {
   UNWRAP    = 0xF9,   // stack: [result/option] → [value] or throw
   UNWRAP_ERR = 0xFA,  // stack: [Err(e)] → [e] (extract error from Err)
   PUSH_FN   = 0xFB,   // stack: [] → [closure] (push fn_lit as closure value)
+  THROW     = 0xFC,   // stack: [value] → (throw error, jump to catch)
+  TRY_BEGIN = 0xFD,   // mark try block start: arg: catch_offset
+  TRY_END   = 0xFE,   // mark try block end
 }
 
 // ── IR Instruction ──────────────────────────────────────────

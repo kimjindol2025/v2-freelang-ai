@@ -88,6 +88,9 @@ export enum Op {
   WRAP_NONE = 0x78,
   UNWRAP_ERR = 0x79,
   PUSH_FN = 0x7A,
+  THROW = 0x7B,
+  TRY_BEGIN = 0x7C,
+  TRY_END = 0x7D,
 
   // Actor/Channel
   SPAWN = 0x80,
@@ -237,6 +240,7 @@ export class Compiler {
       case "if_stmt": return this.compileIfStmt(stmt);
       case "match_stmt": return this.compileMatchStmt(stmt);
       case "try_stmt": return this.compileTryStmt(stmt);
+      case "throw_stmt": return this.compileThrowStmt(stmt);
       case "for_stmt": return this.compileForStmt(stmt);
       case "while_stmt": return this.compileWhileStmt(stmt);
       case "break_stmt": return this.compileBreakStmt(stmt);
@@ -361,10 +365,10 @@ export class Compiler {
   }
 
   private compileTryStmt(stmt: Stmt & { kind: "try_stmt" }): void {
-    // Mark this as a try block for the VM's exception handling
-    const tryStart = this.chunk.currentOffset();
-    this.chunk.emit(Op.PUSH_I32, stmt.line); // placeholder for try marker
-    this.chunk.emitI32(0, stmt.line);
+    // TRY_BEGIN: push catch offset onto VM's try stack
+    const catchOffset = this.chunk.currentOffset();
+    this.chunk.emit(Op.TRY_BEGIN, stmt.line);
+    this.chunk.emitI32(0, stmt.line); // placeholder for catch offset
 
     // Compile try body
     this.beginScope();
@@ -373,13 +377,18 @@ export class Compiler {
     }
     this.endScope(stmt.line);
 
-    // Jump over catch block if no error
+    // Jump over catch block (no error case)
     this.chunk.emit(Op.JUMP, stmt.line);
     const skipCatch = this.chunk.currentOffset();
     this.chunk.emitI32(0, stmt.line);
 
-    // Catch block
-    const catchStart = this.chunk.currentOffset();
+    // Catch block starts here
+    const catchBlockStart = this.chunk.currentOffset();
+    this.chunk.patchI32(catchOffset + 1, catchBlockStart); // patch catch offset
+
+    this.chunk.emit(Op.TRY_END, stmt.line); // pop from try stack
+
+    // Catch block: error value on stack, bind to variable
     this.beginScope();
     const catchVarSlot = this.declareLocal(stmt.catch_var);
     this.chunk.emit(Op.STORE_LOCAL, stmt.line);
@@ -390,8 +399,15 @@ export class Compiler {
     }
     this.endScope(stmt.line);
 
-    // Patch skip jump
+    // Patch skip jump to end of catch block
     this.chunk.patchI32(skipCatch, this.chunk.currentOffset());
+  }
+
+  private compileThrowStmt(stmt: Stmt & { kind: "throw_stmt" }): void {
+    // Evaluate the error value
+    this.compileExpr(stmt.value);
+    // Emit THROW opcode
+    this.chunk.emit(Op.THROW, stmt.line);
   }
 
   private compileForStmt(stmt: Stmt & { kind: "for_stmt" }): void {

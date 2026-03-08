@@ -71,6 +71,10 @@ export class VM {
   private instructionCount: number = 0;
   private maxInstructions: number = 1_000_000;
 
+  // Exception handling
+  private tryStack: { catchOffset: number }[] = [];
+  private pendingError: Value | null = null;
+
   // Phase 1 추가: GC 엔진
   private gc: GCEngine = new GCEngine();
   private gcStats: GCStats[] = [];
@@ -586,6 +590,34 @@ export class VM {
         case Op.IS_NONE: {
           const val = actor.stack.pop()!;
           actor.stack.push({ tag: "bool", val: val.tag === "none" });
+          break;
+        }
+
+        // ---- Exception Handling ----
+        case Op.THROW: {
+          const value = actor.stack.pop()!;
+          // If there's an active try block, jump to catch
+          if (this.tryStack.length > 0) {
+            const { catchOffset } = this.tryStack[this.tryStack.length - 1];
+            actor.stack.push(value); // push error value for catch block
+            actor.ip = catchOffset;
+          } else {
+            // No try block, treat as runtime error
+            throw new Error(`panic: ${this.valueToString(value)}`);
+          }
+          break;
+        }
+
+        case Op.TRY_BEGIN: {
+          const catchOffset = this.readI32(actor);
+          this.tryStack.push({ catchOffset });
+          break;
+        }
+
+        case Op.TRY_END: {
+          if (this.tryStack.length > 0) {
+            this.tryStack.pop();
+          }
           break;
         }
 

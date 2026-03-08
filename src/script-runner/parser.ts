@@ -116,6 +116,8 @@ export class Parser {
         return this.parseSpawnStmt();
       case TokenType.TRY:
         return this.parseTryStmt();
+      case TokenType.THROW:
+        return this.parseThrowStmt();
       case TokenType.RETURN:
         return this.parseReturnStmt();
       default:
@@ -385,6 +387,14 @@ export class Parser {
     const catch_body = this.parseBlock();
 
     return { kind: "try_stmt", body, catch_var, catch_body, line: kw.line, col: kw.col };
+  }
+
+  // throw 문
+  private parseThrowStmt(): Stmt {
+    const kw = this.advance(); // throw
+    const value = this.parseExpr(0);
+    this.match(TokenType.SEMICOLON); // optional semicolon
+    return { kind: "throw_stmt", value, line: kw.line, col: kw.col };
   }
 
   // return 문
@@ -992,7 +1002,7 @@ export class Parser {
     return t === TokenType.VAR || t === TokenType.LET || t === TokenType.CONST ||
            t === TokenType.FN || t === TokenType.STRUCT || t === TokenType.IF || t === TokenType.MATCH ||
            t === TokenType.FOR || t === TokenType.WHILE || t === TokenType.BREAK || t === TokenType.CONTINUE ||
-           t === TokenType.SPAWN || t === TokenType.TRY || t === TokenType.RETURN;
+           t === TokenType.SPAWN || t === TokenType.TRY || t === TokenType.THROW || t === TokenType.RETURN;
   }
 
   private error(message: string, tok: Token): void {
