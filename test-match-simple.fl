@@ -1,0 +1,6 @@
+// Simple match statement test
+let x = 5;
+match x {
+  5 => println("five"),
+  _ => println("other"),
+}

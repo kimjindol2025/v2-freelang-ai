@@ -85,6 +85,8 @@ export enum Op {
   IS_ERR = 0x75,
   IS_SOME = 0x76,
   IS_NONE = 0x77,
+  WRAP_NONE = 0x78,
+  UNWRAP_ERR = 0x79,
 
   // Actor/Channel
   SPAWN = 0x80,
@@ -331,10 +333,9 @@ export class Compiler {
       const nextArm = this.chunk.currentOffset();
       this.chunk.emitI32(0, stmt.line);
 
-      // body (subject POP 후)
-      this.chunk.emit(Op.POP, stmt.line); // subject 제거
+      // body (subject POP 전에 패턴 바인딩)
       this.beginScope();
-      this.compilePatternBind(arm.pattern, stmt.line);
+      this.compilePatternBind(arm.pattern, stmt.line); // subject는 여기서 consume됨
       this.compileExpr(arm.body);
       this.chunk.emit(Op.POP, stmt.line); // match stmt → 값 버림
       this.endScope(stmt.line);
@@ -977,11 +978,55 @@ export class Compiler {
   }
 
   private compilePatternBind(pattern: Pattern, line: number): void {
-    // 패턴에서 바인딩 변수 생성
-    if (pattern.kind === "ident") {
-      // subject가 이미 스택에 있음 — 복원 필요
-      // 여기서는 단순화: match body에서 바인딩 변수에 접근 가능하게
-      // 실제로는 match subject를 로컬에 저장해야 함
+    // 스택에는 subject가 있음 (패턴 매칭 후, POP 전)
+    switch (pattern.kind) {
+      case "ok": {
+        // UNWRAP: Ok(x), Some(x) → x 추출
+        this.chunk.emit(Op.UNWRAP, line);
+        // 내부 패턴 바인딩 (예: ident "x")
+        if (pattern.inner && pattern.inner.kind === "ident") {
+          const slot = this.declareLocal(pattern.inner.name);
+          this.chunk.emit(Op.STORE_LOCAL, line);
+          this.chunk.emitI32(slot, line);
+        }
+        break;
+      }
+      case "some": {
+        // UNWRAP: Some(v) → v 추출
+        this.chunk.emit(Op.UNWRAP, line);
+        if (pattern.inner && pattern.inner.kind === "ident") {
+          const slot = this.declareLocal(pattern.inner.name);
+          this.chunk.emit(Op.STORE_LOCAL, line);
+          this.chunk.emitI32(slot, line);
+        }
+        break;
+      }
+      case "err": {
+        // Err(e) → e 추출
+        this.chunk.emit(Op.UNWRAP_ERR, line);
+        if (pattern.inner && pattern.inner.kind === "ident") {
+          const slot = this.declareLocal(pattern.inner.name);
+          this.chunk.emit(Op.STORE_LOCAL, line);
+          this.chunk.emitI32(slot, line);
+        }
+        break;
+      }
+      case "ident": {
+        // 전체 값을 변수에 바인딩
+        const slot = this.declareLocal(pattern.name);
+        this.chunk.emit(Op.STORE_LOCAL, line);
+        this.chunk.emitI32(slot, line);
+        break;
+      }
+      case "literal":
+        // 리터럴 패턴은 바인딩 없음, subject만 제거
+        this.chunk.emit(Op.POP, line);
+        break;
+      case "wildcard":
+      case "none":
+        // 다른 패턴은 subject만 제거
+        this.chunk.emit(Op.POP, line);
+        break;
     }
   }
 

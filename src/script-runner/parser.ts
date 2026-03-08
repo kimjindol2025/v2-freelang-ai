@@ -436,8 +436,10 @@ export class Parser {
       // BUT: 블록과 구조체 리터럴을 구분하기 위해, 다음 토큰이 statement keyword면 블록이다
       if (tok.type === TokenType.LBRACE && left.kind === "ident") {
         // Peek ahead to see if this is a block or struct literal
-        // If the next token after LBRACE is a statement keyword, it's a block, not a struct literal
+        // If the next token after LBRACE is a statement keyword or pattern keyword, it's a block, not a struct literal
         const nextIdx = this.pos + 1;
+        let isBlock = false;
+
         if (nextIdx < this.tokens.length) {
           const nextTok = this.tokens[nextIdx];
           // If the next token is a statement start keyword, this is a block, not a struct literal
@@ -449,8 +451,26 @@ export class Parser {
               nextTok.type === TokenType.CONTINUE || nextTok.type === TokenType.SPAWN ||
               nextTok.type === TokenType.RETURN) {
             // This is a block, not a struct literal
-            break;
+            isBlock = true;
           }
+
+          // Check if this is a match block by looking for => (pattern => body syntax)
+          if (!isBlock) {
+            for (let i = nextIdx; i < Math.min(nextIdx + 10, this.tokens.length); i++) {
+              if (this.tokens[i].type === TokenType.RBRACE) {
+                break; // Reached end of block without finding =>
+              }
+              if (this.tokens[i].type === TokenType.ARROW) {
+                // Found =>, this is a match block
+                isBlock = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (isBlock) {
+          break; // Don't parse as struct literal
         }
 
         this.advance(); // {

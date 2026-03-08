@@ -551,6 +551,15 @@ export class VM {
           }
           break;
         }
+        case Op.UNWRAP_ERR: {
+          const val = actor.stack.pop()!;
+          if (val.tag === "err") {
+            actor.stack.push(val.val);
+          } else {
+            throw new Error(`panic: unwrap_err on ${val.tag}`);
+          }
+          break;
+        }
         case Op.IS_OK: {
           const val = actor.stack.pop()!;
           actor.stack.push({ tag: "bool", val: val.tag === "ok" });

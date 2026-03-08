@@ -90,6 +90,7 @@ export type Stmt =
   | { kind: "use_decl"; module: string; alias: string; line: number; col: number }
   | { kind: "if_stmt"; condition: Expr; then: Stmt[]; else_: Stmt[] | null; line: number; col: number }
   | { kind: "match_stmt"; subject: Expr; arms: MatchArm[]; line: number; col: number }
+  | { kind: "try_stmt"; body: Stmt[]; catch_var: string; catch_body: Stmt[]; line: number; col: number }
   | { kind: "for_stmt"; variable: string; iterable: Expr; body: Stmt[]; line: number; col: number }
   | { kind: "for_of_stmt"; variable: string; iterable: Expr; body: Stmt[]; line: number; col: number }
   | { kind: "while_stmt"; condition: Expr; body: Stmt[]; line: number; col: number }
