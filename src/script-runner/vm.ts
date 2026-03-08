@@ -954,9 +954,10 @@ export class VM {
       // Higher-Order Functions
       // ============================================================
       case "map": {
-        // args[0] = closure (fn), args[1] = array
-        const fn = args[0];
-        const arr = args[1];
+        // Method call: arr.map(fn)
+        // args[0] = array (self), args[1] = closure (fn)
+        const arr = args[0];
+        const fn = args[1];
         if (fn.tag !== "fn" || arr.tag !== "arr") {
           return { tag: "arr", val: [] };
         }
@@ -969,9 +970,10 @@ export class VM {
         return { tag: "arr", val: result };
       }
       case "filter": {
-        // args[0] = closure (fn), args[1] = array
-        const fn = args[0];
-        const arr = args[1];
+        // Method call: arr.filter(fn)
+        // args[0] = array (self), args[1] = closure (fn)
+        const arr = args[0];
+        const fn = args[1];
         if (fn.tag !== "fn" || arr.tag !== "arr") {
           return { tag: "arr", val: [] };
         }
@@ -986,9 +988,10 @@ export class VM {
         return { tag: "arr", val: result };
       }
       case "reduce": {
-        // args[0] = closure (fn), args[1] = array, args[2] = initial
-        const fn = args[0];
-        const arr = args[1];
+        // Method call: arr.reduce(fn, initial)
+        // args[0] = array (self), args[1] = closure (fn), args[2] = initial
+        const arr = args[0];
+        const fn = args[1];
         const initial = args[2];
         if (fn.tag !== "fn" || arr.tag !== "arr") {
           return initial;
@@ -1042,29 +1045,39 @@ export class VM {
         return env.get(expr.name) || { tag: "void" };
 
       case "int_lit":
-        return { tag: "i32", val: expr.val };
+        return { tag: "i32", val: expr.value ?? expr.val };
 
       case "float_lit":
-        return { tag: "f64", val: expr.val };
+        return { tag: "f64", val: expr.value ?? expr.val };
 
       case "str_lit":
-        return { tag: "str", val: expr.val };
+        return { tag: "str", val: expr.value ?? expr.val };
 
       case "bool_lit":
-        return { tag: "bool", val: expr.val };
+        return { tag: "bool", val: expr.value ?? expr.val };
+
+      case "block_expr": {
+        // 블록의 마지막 expression을 평가
+        if (expr.expr) {
+          return this.evalExpr(expr.expr, env);
+        }
+        return { tag: "void" };
+      }
 
       case "binary": {
         const left = this.evalExpr(expr.left, env);
         const right = this.evalExpr(expr.right, env);
-        const lval = (left as any).val ?? left;
-        const rval = (right as any).val ?? right;
+
+        // Extract numeric values, handling both i32 and f64
+        const lval = (left.tag === "i32" || left.tag === "f64") ? (left as any).val : NaN;
+        const rval = (right.tag === "i32" || right.tag === "f64") ? (right as any).val : NaN;
 
         switch (expr.op) {
-          case "+": return { tag: left.tag, val: lval + rval } as Value;
-          case "-": return { tag: left.tag, val: lval - rval } as Value;
-          case "*": return { tag: left.tag, val: lval * rval } as Value;
-          case "/": return { tag: left.tag, val: lval / rval } as Value;
-          case "%": return { tag: left.tag, val: lval % rval } as Value;
+          case "+": return { tag: left.tag === "f64" || right.tag === "f64" ? "f64" : left.tag, val: lval + rval } as Value;
+          case "-": return { tag: left.tag === "f64" || right.tag === "f64" ? "f64" : left.tag, val: lval - rval } as Value;
+          case "*": return { tag: left.tag === "f64" || right.tag === "f64" ? "f64" : left.tag, val: lval * rval } as Value;
+          case "/": return { tag: "f64", val: lval / rval } as Value;
+          case "%": return { tag: left.tag === "f64" || right.tag === "f64" ? "f64" : left.tag, val: lval % rval } as Value;
           case "==": return { tag: "bool", val: lval === rval } as Value;
           case "!=": return { tag: "bool", val: lval !== rval } as Value;
           case "<": return { tag: "bool", val: lval < rval } as Value;
