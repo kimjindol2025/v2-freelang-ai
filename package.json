@@ -1,7 +1,7 @@
 {
   "name": "freelang",
-  "version": "2.6.0",
-  "description": "FreeLang v2.6.0 - Official Language Runtime (Level 3 Implementation Complete)",
+  "version": "2.9.0",
+  "description": "FreeLang v2.9.0 - Zero-Dependency AI Compiler (Native-Guard Hook Complete)",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "scripts": {
@@ -89,10 +89,10 @@
     ],
     "entry": "dist/cli/index.js",
     "cli": true,
-    "version": "2.6.0",
-    "status": "stable",
+    "version": "2.9.0",
+    "status": "production-ready",
     "level": 3,
-    "completeness": "95%",
+    "completeness": "100%",
     "dependencies": [],
     "exports": {
       "cli": "./dist/cli/index.js",
