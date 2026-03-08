@@ -114,6 +114,8 @@ export class Parser {
         return this.parseContinueStmt();
       case TokenType.SPAWN:
         return this.parseSpawnStmt();
+      case TokenType.TRY:
+        return this.parseTryStmt();
       case TokenType.RETURN:
         return this.parseReturnStmt();
       default:
@@ -367,6 +369,22 @@ export class Parser {
     const body = this.parseBlock();
 
     return { kind: "spawn_stmt", body, line: kw.line, col: kw.col };
+  }
+
+  // try-catch 문
+  private parseTryStmt(): Stmt {
+    const kw = this.advance(); // try
+    this.expect(TokenType.LBRACE, "expected '{' after try");
+    const body = this.parseBlock();
+
+    this.expect(TokenType.CATCH, "expected 'catch' after try block");
+    this.expect(TokenType.LPAREN, "expected '(' after catch");
+    const catch_var = this.expectIdent("catch variable name");
+    this.expect(TokenType.RPAREN, "expected ')' after catch variable");
+    this.expect(TokenType.LBRACE, "expected '{' after catch");
+    const catch_body = this.parseBlock();
+
+    return { kind: "try_stmt", body, catch_var, catch_body, line: kw.line, col: kw.col };
   }
 
   // return 문
@@ -974,7 +992,7 @@ export class Parser {
     return t === TokenType.VAR || t === TokenType.LET || t === TokenType.CONST ||
            t === TokenType.FN || t === TokenType.STRUCT || t === TokenType.IF || t === TokenType.MATCH ||
            t === TokenType.FOR || t === TokenType.WHILE || t === TokenType.BREAK || t === TokenType.CONTINUE ||
-           t === TokenType.SPAWN || t === TokenType.RETURN;
+           t === TokenType.SPAWN || t === TokenType.TRY || t === TokenType.RETURN;
   }
 
   private error(message: string, tok: Token): void {

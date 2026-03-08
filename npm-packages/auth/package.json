@@ -22,8 +22,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "echo 'Run tests with: npx ts-node test.ts'",
-    "prepublishOnly": "npm run build"
+    "test": "echo 'Run tests with: npx ts-node test.ts'"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

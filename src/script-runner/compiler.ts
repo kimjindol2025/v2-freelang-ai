@@ -235,6 +235,7 @@ export class Compiler {
       case "use_decl": return; // use 문은 무시 (컴파일 단계에서 처리 안 함)
       case "if_stmt": return this.compileIfStmt(stmt);
       case "match_stmt": return this.compileMatchStmt(stmt);
+      case "try_stmt": return this.compileTryStmt(stmt);
       case "for_stmt": return this.compileForStmt(stmt);
       case "while_stmt": return this.compileWhileStmt(stmt);
       case "break_stmt": return this.compileBreakStmt(stmt);
@@ -356,6 +357,40 @@ export class Compiler {
     for (const j of endJumps) {
       this.chunk.patchI32(j, this.chunk.currentOffset());
     }
+  }
+
+  private compileTryStmt(stmt: Stmt & { kind: "try_stmt" }): void {
+    // Mark this as a try block for the VM's exception handling
+    const tryStart = this.chunk.currentOffset();
+    this.chunk.emit(Op.PUSH_I32, stmt.line); // placeholder for try marker
+    this.chunk.emitI32(0, stmt.line);
+
+    // Compile try body
+    this.beginScope();
+    for (const s of stmt.body) {
+      this.compileStmt(s);
+    }
+    this.endScope(stmt.line);
+
+    // Jump over catch block if no error
+    this.chunk.emit(Op.JUMP, stmt.line);
+    const skipCatch = this.chunk.currentOffset();
+    this.chunk.emitI32(0, stmt.line);
+
+    // Catch block
+    const catchStart = this.chunk.currentOffset();
+    this.beginScope();
+    const catchVarSlot = this.declareLocal(stmt.catch_var);
+    this.chunk.emit(Op.STORE_LOCAL, stmt.line);
+    this.chunk.emitI32(catchVarSlot, stmt.line);
+
+    for (const s of stmt.catch_body) {
+      this.compileStmt(s);
+    }
+    this.endScope(stmt.line);
+
+    // Patch skip jump
+    this.chunk.patchI32(skipCatch, this.chunk.currentOffset());
   }
 
   private compileForStmt(stmt: Stmt & { kind: "for_stmt" }): void {
