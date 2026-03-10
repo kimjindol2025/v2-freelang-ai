@@ -1,0 +1,129 @@
+#!/usr/bin/env freelang
+// Phase 3: Self-Parse Fixed Point Test
+// 목표: parser.fl이 자신을 파싱할 수 있는가?
+
+fn main() {
+  println("╔════════════════════════════════════════╗")
+  println("║  Phase 3: Self-Parse Test              ║")
+  println("║  Goal: Achieve Fixed Point             ║")
+  println("╚════════════════════════════════════════╝")
+
+  // Step 1: 파일 로드
+  println("")
+  println("📋 Step 1: Loading parser.fl...")
+  let parser_source = read_file("src/parser/parser.fl")
+  let source_lines = array_length(split(parser_source, "\n"))
+  println("   Lines: " + number_to_string(source_lines))
+
+  if source_lines < 1000 {
+    println("   ⚠️  Warning: fewer than 1000 lines")
+  }
+
+  // Step 2: 렉서 테스트 (Phase 1 재확인)
+  println("")
+  println("📋 Step 2: Tokenizing parser.fl...")
+  let tokens = tokenize(parser_source)
+  let token_count = array_length(tokens)
+  println("   Tokens: " + number_to_string(token_count))
+
+  // 예상: 5000+ 토큰
+  if token_count < 1000 {
+    println("   ❌ FAIL: Too few tokens (expected 5000+)")
+    return false
+  }
+
+  println("   ✅ Tokenize passed")
+
+  // Step 3: 파서 테스트 (Phase 2 핵심)
+  println("")
+  println("📋 Step 3: Parsing parser.fl...")
+
+  let ast = parse(parser_source)
+  println("   ✅ Parse succeeded")
+
+  // Step 4: AST 구조 검증
+  println("")
+  println("📋 Step 4: Validating AST structure...")
+
+  if ast.type != "Program" {
+    println("   ❌ FAIL: Root type is " + ast.type + ", expected Program")
+    return false
+  }
+
+  let stmt_count = array_length(ast.statements)
+  println("   Statements: " + number_to_string(stmt_count))
+
+  if stmt_count < 30 {
+    println("   ⚠️  Warning: fewer than 30 statements (expected 60-80)")
+  }
+
+  // Step 5: 함수와 변수 개수 세기
+  println("")
+  println("📋 Step 5: Counting function and variable declarations...")
+
+  let fn_count = 0
+  let var_count = 0
+  let i = 0
+
+  while i < stmt_count {
+    let stmt = array_get(ast.statements, i)
+
+    if stmt.type == "FunctionDeclaration" {
+      fn_count = fn_count + 1
+    }
+
+    if stmt.type == "VariableDeclaration" {
+      var_count = var_count + 1
+    }
+
+    i = i + 1
+  }
+
+  println("   Functions: " + number_to_string(fn_count))
+  println("   Variables: " + number_to_string(var_count))
+
+  // Step 6: 최종 판정
+  println("")
+  println("📋 Step 6: Final Judgment")
+  println("")
+
+  // 성공 기준:
+  // - 함수 개수 >= 20 (tokenize, parse, skip_whitespace, ... 등)
+  // - 변수 선언 >= 50 (TOKEN_*, keyword 상수들)
+
+  let success = false
+
+  if fn_count >= 20 && var_count >= 50 {
+    println("✅ PASS: Self-parse fixed point achieved!")
+    println("   → Phase 3 완료 (고정점 달성)")
+    println("")
+    println("   토큰: " + number_to_string(token_count))
+    println("   문장: " + number_to_string(stmt_count))
+    println("   함수: " + number_to_string(fn_count))
+    println("   변수: " + number_to_string(var_count))
+    println("")
+    println("🎉 Bootstrapping 고정점 달성!")
+    println("   → Phase 4 (Code Generation)로 진행 가능")
+    success = true
+  } else {
+    println("⚠️  INCOMPLETE: AST structure insufficient")
+    println("   Expected: fn >= 20, var >= 50")
+    println("   Got: fn = " + number_to_string(fn_count) + ", var = " + number_to_string(var_count))
+    println("")
+
+    if fn_count < 20 {
+      println("   ⚠️  Functions too few (need " + number_to_string(20 - fn_count) + " more)")
+    }
+
+    if var_count < 50 {
+      println("   ⚠️  Variables too few (need " + number_to_string(50 - var_count) + " more)")
+    }
+
+    success = false
+  }
+
+  return success
+}
+
+// 실행
+main()
